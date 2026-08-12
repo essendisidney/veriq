@@ -1,0 +1,74 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #07090e;
+  --surface: #0e1219;
+  --elevated: #151b26;
+  --border: #243044;
+  --ink: #f2f5fa;
+  --muted: #8a93a6;
+  --accent: #3ee0c5;
+  --accent-dim: rgba(62, 224, 197, 0.12);
+  --critical: #ff4d6d;
+  --high: #ff8a4c;
+  --medium: #f5c542;
+  --low: #7dd3fc;
+  --good: #3ee0c5;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-elevated: var(--elevated);
+  --color-border: var(--border);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-dim: var(--accent-dim);
+  --color-critical: var(--critical);
+  --color-high: var(--high);
+  --color-medium: var(--medium);
+  --color-low: var(--low);
+  --color-good: var(--good);
+  --font-sans: var(--font-ibm);
+  --font-display: var(--font-instrument);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  height: 100%;
+}
+
+body {
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-ibm), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+.font-display {
+  font-family: var(--font-instrument), Georgia, serif;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--bg);
+}
