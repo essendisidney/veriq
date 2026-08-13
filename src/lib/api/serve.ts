@@ -1,6 +1,18 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
 import { bearerToken, hashApiKey } from "@/lib/api/keys";
+import { createAdminClient } from "@/lib/supabase/admin";
+
+function lookupClient() {
+  const admin = createAdminClient();
+  if (admin) return admin;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !anon) return null;
+  return createClient<Database>(url, anon, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
 
 export const API_DISCLAIMER =
   "VERIQ is intelligence, not a legal, audit or credit opinion. Final decisions remain with authorised professionals.";
@@ -111,10 +123,10 @@ export async function loadCompanyRisk(
     return { status: 429, body: { error: "rate_limited" } };
   }
 
-  const supabase = createClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  );
+  const supabase = lookupClient();
+  if (!supabase) {
+    return { status: 503, body: { error: "misconfigured" } };
+  }
 
   const { data, error } = await supabase.rpc("veriq_api_risk", {
     p_token_hash: tokenHash,
@@ -148,10 +160,10 @@ export async function loadCompanySnapshot(
     return { status: 429, body: { error: "rate_limited" } };
   }
 
-  const supabase = createClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  );
+  const supabase = lookupClient();
+  if (!supabase) {
+    return { status: 503, body: { error: "misconfigured" } };
+  }
 
   const { data, error } = await supabase.rpc("veriq_api_snapshot", {
     p_token_hash: tokenHash,

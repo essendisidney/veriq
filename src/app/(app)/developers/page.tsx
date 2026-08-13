@@ -200,9 +200,9 @@ curl -H "Authorization: Bearer vq_live_…" \\
   ${origin}/api/v1/company/${companyRef}/credit`}
             </pre>
             <p className="mt-3 text-xs text-[var(--muted)]">
-              Authorization: Bearer. Keys and share tokens are hashed at rest. This is
-              intelligence, not a credit score, PD or valuation. A share link at /p/{"{token}"}{" "}
-              opens the same pack without a login.
+              Authorization: Bearer. Call this host, not the database. Keys and share tokens are
+              hashed at rest. This is intelligence, not a credit score, PD or valuation. A share
+              link at /p/{"{token}"} opens the same pack without a login.
             </p>
           </div>
         </section>

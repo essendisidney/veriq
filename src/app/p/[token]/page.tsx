@@ -37,6 +37,9 @@ export default async function PublicSharePage({
   if (status === 429) {
     return <Unavailable title="Too many requests" />;
   }
+  if (status === 503) {
+    return <Unavailable title="Pack temporarily unavailable" />;
+  }
   if (status !== 200) {
     return <Unavailable title="Pack not found" />;
   }
