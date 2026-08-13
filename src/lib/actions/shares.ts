@@ -4,9 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 import { generateShareToken } from "@/lib/api/keys";
 import type { Json } from "@/lib/database.types";
 
-export type ShareKind = "diligence" | "credit";
+export type ShareKind = "diligence" | "credit" | "restructuring";
 
 const MAX_SHARES = 8;
+const SHARE_TTL_DAYS = 14;
 
 export async function createOrgShareLink(input: {
   organizationId: string;
@@ -18,7 +19,7 @@ export async function createOrgShareLink(input: {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
-  if (input.kind !== "diligence" && input.kind !== "credit") {
+  if (input.kind !== "diligence" && input.kind !== "credit" && input.kind !== "restructuring") {
     return { error: "Invalid pack" };
   }
 
@@ -32,15 +33,23 @@ export async function createOrgShareLink(input: {
   }
 
   const generated = generateShareToken();
+  const createdAt = new Date();
+  const expiresAt = new Date(createdAt.getTime() + SHARE_TTL_DAYS * 86_400_000);
   const name =
     input.name?.trim() ||
-    (input.kind === "diligence" ? "Investor pack" : "Bank pack");
+    (input.kind === "diligence"
+      ? "Investor pack"
+      : input.kind === "credit"
+        ? "Bank pack"
+        : "Counsel / IP pack");
   const metadata: Json = {
     keyHash: generated.hash,
     prefix: generated.prefix,
-    createdAt: new Date().toISOString(),
+    createdAt: createdAt.toISOString(),
+    expiresAt: expiresAt.toISOString(),
     kind: input.kind,
     name,
+    openCount: 0,
   };
 
   const { error } = await supabase.from("assets").insert({

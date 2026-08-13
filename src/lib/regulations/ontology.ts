@@ -63,6 +63,23 @@ const AML_EVIDENCE: EvidenceNeed[] = [
   { key: "no_public_secrets", label: "Production credentials not public", control: "access_management", kind: "observable" },
 ];
 
+const GOVERNANCE_EVIDENCE: EvidenceNeed[] = [
+  { key: "board_oversight", label: "Board risk oversight record", control: "corporate_governance", kind: "attested" },
+];
+
+const INSOLVENCY_EVIDENCE: EvidenceNeed[] = [
+  { key: "books_of_account", label: "Books of account / accounting records", control: "financial_controls", kind: "attested" },
+  { key: "statement_of_affairs", label: "Statement of affairs (assets, liabilities, creditors)", control: "corporate_governance", kind: "attested" },
+  { key: "claims_register", label: "Creditor and employee claims register", control: "corporate_governance", kind: "attested" },
+];
+
+const ADVOCATES_EVIDENCE: EvidenceNeed[] = [
+  { key: "https", label: "Confidential client channel (HTTPS)", control: "data_security", kind: "observable" },
+  { key: "practising_certificate", label: "Practising certificate / LSK standing", control: "corporate_governance", kind: "attested" },
+  { key: "client_account", label: "Client-account segregation", control: "financial_controls", kind: "attested" },
+  { key: "client_cdd", label: "Client intake / CDD for designated work", control: "aml", kind: "attested" },
+];
+
 const ALL = "*";
 
 export const REGULATION_CATALOG: RegulationDef[] = [
@@ -124,10 +141,34 @@ export const REGULATION_CATALOG: RegulationDef[] = [
     summary: "Corporate governance, director duties, reporting and company administration requirements in Kenya.",
     industries: ALL,
     controls: ["corporate_governance"],
-    evidence: [
-      { key: "board_oversight", label: "Board risk oversight record", control: "corporate_governance", kind: "attested" },
-    ],
+    evidence: GOVERNANCE_EVIDENCE,
     impact: "Director duties and filing failures become governance findings for investors and lenders.",
+  },
+  {
+    code: "KE-IA",
+    name: "Insolvency Act, 2015",
+    jurisdiction: "KE",
+    category: "insolvency",
+    summary:
+      "Kenya’s framework for administration, liquidation, receivership and related insolvency procedures, including books of account, statements of affairs and cooperation with an insolvency practitioner.",
+    industries: ALL,
+    controls: ["corporate_governance", "financial_controls", "business_continuity"],
+    evidence: INSOLVENCY_EVIDENCE,
+    impact:
+      "Without books of account and a statement of affairs, an insolvency practitioner or counsel cannot take a first-week picture of the estate. VERIQ will not invent creditors, cash or a going-concern opinion.",
+  },
+  {
+    code: "KE-ADV",
+    name: "Advocates Act / Law Society of Kenya professional conduct",
+    jurisdiction: "KE",
+    category: "professional",
+    summary:
+      "Admission, practising certificate, client-account and professional-conduct expectations for advocates in Kenya. Mapped to professional-services firms — not a finding of professional misconduct.",
+    industries: ["professional_services"],
+    controls: ["corporate_governance", "financial_controls", "aml", "data_security"],
+    evidence: ADVOCATES_EVIDENCE,
+    impact:
+      "A firm that cannot evidence practising standing, client-account segregation or intake CDD creates mandate, insurance and LSK risk. This is not a disciplinary finding.",
   },
   {
     code: "KE-CONSUMER",

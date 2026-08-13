@@ -1,4 +1,5 @@
-import { bearerToken, hashApiKey } from "@/lib/api/keys";
+import { bearerToken, hashApiKey, isShareToken } from "@/lib/api/keys";
+import type { Json } from "@/lib/database.types";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 function lookupClient() {
@@ -176,13 +177,49 @@ export async function loadCompanySnapshot(
     return { status: 400, body: { error: payload.error } };
   }
 
+  if (isShareToken(token)) {
+    await recordShareOpen(supabase, tokenHash);
+  }
+
   return { status: 200, body: { ...payload, disclaimer: API_DISCLAIMER } };
+}
+
+async function recordShareOpen(
+  supabase: NonNullable<ReturnType<typeof lookupClient>>,
+  tokenHash: string,
+) {
+  try {
+    const { data: row } = await supabase
+      .from("assets")
+      .select("id, metadata")
+      .eq("type", "share_link")
+      .contains("metadata", { keyHash: tokenHash })
+      .maybeSingle();
+    if (!row) return;
+    const meta =
+      row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
+        ? (row.metadata as Record<string, unknown>)
+        : {};
+    const openCount = typeof meta.openCount === "number" ? meta.openCount : 0;
+    await supabase
+      .from("assets")
+      .update({
+        metadata: {
+          ...meta,
+          openCount: openCount + 1,
+          lastOpenedAt: new Date().toISOString(),
+        } as Json,
+      })
+      .eq("id", row.id);
+  } catch {
+    // Viewing the pack must not fail because the open log did not write.
+  }
 }
 
 export async function loadInstitutionalPack(
   authorization: string | null,
   company: string,
-  kind: "diligence" | "credit",
+  kind: "diligence" | "credit" | "restructuring",
 ): Promise<{ status: number; body: Record<string, unknown> }> {
   const token = bearerToken(authorization);
   if (!token) {

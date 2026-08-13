@@ -875,14 +875,19 @@ export function buildRisks(input: {
         title: `Missing evidence for ${assessment.name}`,
         description: `${unknown.length} required artefacts were not observed and cannot be inferred from this scan.`,
         category: "regulatory",
-        severity: assessment.category === "aml" ? "high" : "medium",
+        severity: assessment.category === "aml" || assessment.category === "insolvency" ? "high" : "medium",
         likelihood: 70,
-        impact: assessment.category === "aml" ? 80 : 65,
+        impact: assessment.category === "aml" || assessment.category === "insolvency" ? 80 : 65,
         confidence: 70,
         why_it_matters: assessment.impact,
         recommendation:
-          "Collect the missing artefacts. VERIQ marks these as UNKNOWN until evidence exists — it will not invent compliance.",
-        owner_role: "Compliance",
+          assessment.category === "insolvency"
+            ? "Produce books of account and a statement of affairs. VERIQ will not invent creditors, cash or a going-concern opinion."
+            : "Collect the missing artefacts. VERIQ marks these as UNKNOWN until evidence exists — it will not invent compliance.",
+        owner_role:
+          assessment.category === "insolvency" || assessment.category === "professional"
+            ? "Counsel"
+            : "Compliance",
         evidence: [
           {
             source_type: "regulation",
@@ -894,8 +899,11 @@ export function buildRisks(input: {
         ],
         action: {
           title: `Collect evidence pack for ${assessment.code}`,
-          owner_role: "Compliance",
-          priority: assessment.category === "aml" ? "high" : "medium",
+          owner_role:
+            assessment.category === "insolvency" || assessment.category === "professional"
+              ? "Counsel"
+              : "Compliance",
+          priority: assessment.category === "aml" || assessment.category === "insolvency" ? "high" : "medium",
         },
       });
     } else if (assessment.coverage < 50 && gaps.length) {

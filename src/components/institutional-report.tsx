@@ -5,6 +5,7 @@ import { Badge, SeverityBadge } from "@/components/ui/badge";
 import { formatDateTime, industryLabel, countryLabel } from "@/lib/utils";
 import { downloadTextFile, institutionalCsv, slugFile } from "@/lib/reports/export";
 import { ExportBar } from "@/components/domain-report";
+import { PACK_COPY } from "@/lib/reports/pack";
 import type { InstitutionalReport, PillarStatus } from "@/lib/reports/institutional";
 
 const STATUS: Record<
@@ -24,6 +25,7 @@ export function InstitutionalReportView({
   report: InstitutionalReport;
   publicView?: boolean;
 }) {
+  const copy = PACK_COPY[report.kind];
   const fileBase = `veriq-${report.kind}-${slugFile(report.company.name)}`;
 
   function downloadJson() {
@@ -45,17 +47,14 @@ export function InstitutionalReportView({
 
       <header className="hidden print:block print:mb-8">
         <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--accent)]">
-          {report.kind === "diligence"
-            ? "VERIQ Investor Intelligence"
-            : "VERIQ Bank Intelligence"}
+          {copy.printBrand}
         </p>
         <h1 className="mt-2 font-display text-4xl">{report.company.name}</h1>
         <p className="mt-2 text-sm">
           {industryLabel(report.company.industry)} · {countryLabel(report.company.country)}
         </p>
         <p className="mt-1 text-sm">
-          {report.kind === "diligence" ? "Company Health Score" : "Business Risk Profile"}{" "}
-          {report.healthScore}/100
+          {copy.scoreLabel} {report.healthScore}/100
           {report.scannedAt
             ? ` · As of ${formatDateTime(report.scannedAt)}`
             : ` · Generated ${formatDateTime(report.generatedAt)}`}
@@ -70,7 +69,7 @@ export function InstitutionalReportView({
 
       <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
         <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
-          {report.kind === "diligence" ? "Company Health Score" : "Business Risk Profile"}
+          {copy.scoreLabel}
         </p>
         <p className="mt-3 font-display text-7xl leading-none">{report.healthScore}</p>
         <p className="mt-1 text-sm text-[var(--muted)]">/ 100</p>
@@ -116,7 +115,7 @@ export function InstitutionalReportView({
 
       <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
         <h2 className="font-display text-2xl">
-          {report.kind === "diligence" ? "Diligence flags" : "Credit-relevant flags"}
+          {copy.flagLabel}
         </h2>
         {report.flags.length === 0 ? (
           <p className="mt-2 text-sm text-[var(--muted)]">No material flags on this snapshot.</p>

@@ -12,9 +12,11 @@ import type { FinanceAssessment } from "@/lib/finance/assess";
 import {
   buildCreditReport,
   buildDiligenceReport,
+  buildRestructuringReport,
   type InstitutionalReport,
   type ReportBundle,
 } from "@/lib/reports/institutional";
+import { parsePackKind, type PackKind } from "@/lib/reports/pack";
 import type { ApiSnapshotPayload } from "@/lib/api/serve";
 
 type ScanSummary = {
@@ -69,15 +71,16 @@ export function bundleFromSnapshot(payload: ApiSnapshotPayload): ReportBundle | 
 }
 
 export function reportFromSnapshot(
-  kind: "diligence" | "credit",
+  kind: PackKind,
   payload: ApiSnapshotPayload,
 ): InstitutionalReport | null {
   const org = payload.company;
   const bundle = bundleFromSnapshot(payload);
   if (!org || !bundle) return null;
-  return kind === "diligence"
-    ? buildDiligenceReport(org, bundle)
-    : buildCreditReport(org, bundle);
+  const pack = parsePackKind(kind);
+  if (pack === "diligence") return buildDiligenceReport(org, bundle);
+  if (pack === "credit") return buildCreditReport(org, bundle);
+  return buildRestructuringReport(org, bundle);
 }
 
 function asScore(payload: ApiSnapshotPayload, orgId: string): Score {

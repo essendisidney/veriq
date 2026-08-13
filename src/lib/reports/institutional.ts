@@ -10,6 +10,10 @@ import type { ScenarioResult } from "@/lib/scenarios/simulate";
 import type { Exposure } from "@/lib/scan/exposure";
 import { SCORE_DIMENSIONS, industryLabel, countryLabel } from "@/lib/utils";
 import { isOverdue, staleDays } from "@/lib/risk/certainty";
+import { PACK_COPY, type PackKind } from "@/lib/reports/pack";
+
+export type { PackKind } from "@/lib/reports/pack";
+export { PACK_COPY, parsePackKind } from "@/lib/reports/pack";
 
 export type ReportBundle = {
   score: Score | null;
@@ -63,7 +67,7 @@ export type ReportAction = {
 };
 
 export type InstitutionalReport = {
-  kind: "diligence" | "credit";
+  kind: PackKind;
   title: string;
   audience: string;
   generatedAt: string;
@@ -115,6 +119,16 @@ const CREDIT_KEYS = [
   "data",
 ] as const;
 
+const RESTRUCTURING_KEYS = [
+  "operational",
+  "vendor",
+  "financial",
+  "cybersecurity",
+  "technology",
+  "regulatory",
+  "data",
+] as const;
+
 export function buildDiligenceReport(
   org: { name: string; industry: string; country: string },
   bundle: ReportBundle,
@@ -129,14 +143,27 @@ export function buildCreditReport(
   return buildInstitutional("credit", org, bundle);
 }
 
+export function buildRestructuringReport(
+  org: { name: string; industry: string; country: string },
+  bundle: ReportBundle,
+): InstitutionalReport | null {
+  return buildInstitutional("restructuring", org, bundle);
+}
+
+function pillarKeys(kind: PackKind) {
+  if (kind === "diligence") return INVESTOR_KEYS;
+  if (kind === "credit") return CREDIT_KEYS;
+  return RESTRUCTURING_KEYS;
+}
+
 function buildInstitutional(
-  kind: "diligence" | "credit",
+  kind: PackKind,
   org: { name: string; industry: string; country: string },
   bundle: ReportBundle,
 ): InstitutionalReport | null {
   if (!bundle.score) return null;
 
-  const keys = kind === "diligence" ? INVESTOR_KEYS : CREDIT_KEYS;
+  const keys = pillarKeys(kind);
   const pillars = keys.map((key) =>
     pillar(bundle.score!, key, bundle, kind),
   );
@@ -182,12 +209,19 @@ function buildInstitutional(
     parts.push(
       "This is not a valuation, not investment advice, and not a substitute for legal, financial or technical due diligence.",
     );
-  } else {
+  } else if (kind === "credit") {
     parts.push(
       `${org.name} (${industryLabel(org.industry)}, ${countryLabel(org.country)}) presents a business risk profile of ${bundle.score.overall}/100 from technology, cyber, vendor, operational and attested financial signals.`,
     );
     parts.push(
       "This is not a credit rating, not a probability of default, and not a substitute for financial statements. Amounts in KES remain UNKNOWN.",
+    );
+  } else {
+    parts.push(
+      `${org.name} (${industryLabel(org.industry)}, ${countryLabel(org.country)}) has an operating continuity picture of ${bundle.score.overall}/100 from observed systems, vendors, regulations and attested finance.`,
+    );
+    parts.push(
+      "This is not a solvency opinion, not a statement of affairs, and not a substitute for an insolvency practitioner or legal advice. Creditor lists, cash and preferences remain UNKNOWN.",
     );
   }
   if (critical.length) {
@@ -212,13 +246,11 @@ function buildInstitutional(
     );
   }
 
+  const copy = PACK_COPY[kind];
   return {
     kind,
-    title: kind === "diligence" ? "Investor due diligence" : "Bank / credit intelligence",
-    audience:
-      kind === "diligence"
-        ? "Investors, acquirers and diligence teams"
-        : "Banks, lenders and credit committees",
+    title: copy.title,
+    audience: copy.audience,
     generatedAt: new Date().toISOString(),
     scannedAt,
     staleDays: staleDays(scannedAt),
@@ -232,7 +264,7 @@ function buildInstitutional(
     delta,
     summary: parts.join(" "),
     pillars,
-    flags: flags.slice(0, 8),
+    flags: flags.slice(0, kind === "restructuring" ? 12 : 8),
     unknowns,
     questions: questions.slice(0, 6),
     actions: reportActions,
@@ -269,10 +301,7 @@ function buildInstitutional(
           dmarc: bundle.exposure.dmarc,
         }
       : null,
-    disclaimer:
-      kind === "diligence"
-        ? "VERIQ is not a lawyer, auditor, valuer or investment adviser. This pack does not recommend buying, selling or holding securities. Amounts, cap tables and forecasts remain UNKNOWN unless attested elsewhere."
-        : "VERIQ is not a credit-rating agency, bank or auditor. This profile must not be used as a credit score, PD, LGD or limit recommendation. Liquidity, leverage and cash remain UNKNOWN without financial statements.",
+    disclaimer: copy.disclaimer,
   };
 }
 
@@ -280,7 +309,7 @@ function pillar(
   score: Score,
   key: (typeof SCORE_DIMENSIONS)[number]["key"],
   bundle: ReportBundle,
-  kind: "diligence" | "credit",
+  kind: PackKind,
 ): ReportPillar {
   const def = SCORE_DIMENSIONS.find((item) => item.key === key)!;
   const value = score[key];
@@ -299,12 +328,16 @@ function pillarNote(
   key: string,
   value: number,
   bundle: ReportBundle,
-  kind: "diligence" | "credit",
+  kind: PackKind,
 ): string {
   if (key === "financial") {
-    return kind === "credit"
-      ? "Qualitative signals only. Revenue, liquidity and leverage amounts are UNKNOWN."
-      : "Financial statements were not ingested. Treat this as operational finance risk, not earnings quality.";
+    if (kind === "credit") {
+      return "Qualitative signals only. Revenue, liquidity and leverage amounts are UNKNOWN.";
+    }
+    if (kind === "restructuring") {
+      return "Qualitative liquidity and concentration only. Cash, creditor amounts and solvency remain UNKNOWN.";
+    }
+    return "Financial statements were not ingested. Treat this as operational finance risk, not earnings quality.";
   }
   if (key === "ai") {
     return bundle.ai?.systems.length
@@ -329,6 +362,9 @@ function pillarNote(
       : "External exposure has not been modelled.";
   }
   if (key === "operational") {
+    if (kind === "restructuring") {
+      return "Whether operations can continue or must stop. Not a going-concern audit.";
+    }
     return kind === "credit"
       ? "Resilience of host, identity and payment rails — not a going-concern audit."
       : "Operating dependencies inferred from the company model.";
@@ -338,7 +374,7 @@ function pillarNote(
     : "Below a strong threshold on this snapshot. Evidence, not a forecast.";
 }
 
-function collectFlags(bundle: ReportBundle, kind: "diligence" | "credit"): ReportFlag[] {
+function collectFlags(bundle: ReportBundle, kind: PackKind): ReportFlag[] {
   const flags: ReportFlag[] = [];
   for (const risk of bundle.risks.filter(
     (item) => item.severity === "critical" || item.severity === "high",
@@ -373,7 +409,7 @@ function collectFlags(bundle: ReportBundle, kind: "diligence" | "credit"): Repor
   if (bundle.finance?.attested.keyPerson === "yes") {
     flags.push({
       id: "flag:key-person",
-      severity: kind === "credit" ? "high" : "medium",
+      severity: kind === "diligence" ? "medium" : "high",
       title: "Key-person dependency attested",
       detail: "Production or financial control is concentrated. Privileges were not observed in the scan.",
       href: "/finance",
@@ -388,12 +424,15 @@ function collectFlags(bundle: ReportBundle, kind: "diligence" | "credit"): Repor
       href: "/finance",
     });
   }
-  if (kind === "credit" && bundle.finance?.attested.liquidity === "tight") {
+  if ((kind === "credit" || kind === "restructuring") && bundle.finance?.attested.liquidity === "tight") {
     flags.push({
       id: "flag:liquidity",
       severity: "high",
       title: "Liquidity attested as tight",
-      detail: "This is a qualitative band, not a cash figure. Statements are still required.",
+      detail:
+        kind === "restructuring"
+          ? "This is a qualitative band, not cash available to the estate. Statements and a statement of affairs are still required."
+          : "This is a qualitative band, not a cash figure. Statements are still required.",
       href: "/finance",
     });
   }
@@ -433,14 +472,69 @@ function collectFlags(bundle: ReportBundle, kind: "diligence" | "credit"): Repor
       href: "/technology",
     });
   }
+  if (kind === "restructuring") {
+    const insolvency = bundle.regulatory.find(
+      (item) => item.category === "insolvency" || item.code === "KE-IA",
+    );
+    if (insolvency) {
+      flags.push({
+        id: "flag:insolvency-act",
+        severity: "high",
+        title: `${insolvency.code} artefacts are UNKNOWN`,
+        detail: insolvency.impact,
+        href: `/regulations/${insolvency.code}`,
+      });
+    }
+    const advocates = bundle.regulatory.find((item) => item.code === "KE-ADV");
+    if (advocates) {
+      flags.push({
+        id: "flag:advocates-act",
+        severity: "medium",
+        title: "Practising standing and client-account evidence are UNKNOWN",
+        detail: advocates.impact,
+        href: `/regulations/${advocates.code}`,
+      });
+    }
+    for (const scenario of bundle.scenarios.slice(0, 3)) {
+      const severity: ReportFlag["severity"] =
+        scenario.severity === "critical" || scenario.severity === "high"
+          ? scenario.severity
+          : "watch";
+      flags.push({
+        id: `flag:scenario:${scenario.id}`,
+        severity,
+        title: scenario.title,
+        detail: `${scenario.operational} Financial impact remains UNKNOWN.`,
+        href: `/scenarios/${scenario.id}`,
+      });
+    }
+  }
   return uniqueFlags(flags);
 }
 
-function collectUnknowns(bundle: ReportBundle, kind: "diligence" | "credit"): string[] {
+function collectUnknowns(bundle: ReportBundle, kind: PackKind): string[] {
+  const head =
+    kind === "diligence"
+      ? "Valuation / cap table"
+      : kind === "credit"
+        ? "Credit rating / PD / LGD"
+        : "Statement of affairs / creditor list";
+  const extras =
+    kind === "restructuring"
+      ? [
+          "Cash, preferences and transactions at undervalue",
+          "Employee and preferential claims",
+          "Court or Official Receiver status",
+          "Contract assignment and beneficial ownership",
+          "Going-concern opinion",
+        ]
+      : [
+          "Revenue, cash and liability amounts",
+          "Whether financial statements are audited",
+        ];
   const items = [
-    kind === "diligence" ? "Valuation / cap table" : "Credit rating / PD / LGD",
-    "Revenue, cash and liability amounts",
-    "Whether financial statements are audited",
+    head,
+    ...extras,
     ...(bundle.finance?.unknowns.slice(0, 4) ?? []),
     ...(bundle.ai?.unknowns.slice(0, 3) ?? ["Whether AI is used at all"]),
     "Whether the company serves the EU market",
@@ -452,7 +546,7 @@ function collectUnknowns(bundle: ReportBundle, kind: "diligence" | "credit"): st
 function collectQuestions(
   org: { name: string },
   bundle: ReportBundle,
-  kind: "diligence" | "credit",
+  kind: PackKind,
 ): ReportQuestion[] {
   const questions: ReportQuestion[] = [];
   if (kind === "diligence") {
@@ -471,7 +565,7 @@ function collectQuestions(
       why: "Shadow AI is common. Absence of ChatGPT or Copilot is not assumed.",
       href: "/ai",
     });
-  } else {
+  } else if (kind === "credit") {
     questions.push({
       question: "Is the collection rail substitutable within hours, or is revenue paused?",
       why: "A single observed processor is operational credit risk. The amount at risk stays UNKNOWN.",
@@ -487,6 +581,32 @@ function collectQuestions(
       why: "A notifiable incident can become a going-concern event. This is not a pentest.",
       href: "/findings",
     });
+  } else {
+    const insolvency = bundle.regulatory.find(
+      (item) => item.category === "insolvency" || item.code === "KE-IA",
+    );
+    questions.push({
+      question: `If ${org.name} must keep operating for 14 days, which host, payment rail or key person would stop it?`,
+      why: "Continuity of the estate is an operational question. VERIQ does not value the estate or list creditors.",
+      href: "/scenarios",
+    });
+    if (insolvency) {
+      questions.push({
+        question: `Where are the books of account and a statement of affairs under ${insolvency.code}?`,
+        why: `${insolvency.name} is mapped. Those artefacts stay UNKNOWN until produced. VERIQ will not invent creditors or cash.`,
+        href: `/regulations/${insolvency.code}`,
+      });
+    }
+    questions.push({
+      question: "Which processors still hold personal data if trading stops today?",
+      why: "Wind-down does not end Data Protection obligations. DPAs stay UNKNOWN.",
+      href: "/vendors",
+    });
+    questions.push({
+      question: "Who controls the cloud, GitHub and collection accounts if directors are no longer in charge?",
+      why: "Access and substitution were not observed as legal control. Privileges stay UNKNOWN.",
+      href: "/finance",
+    });
   }
   const overdue = bundle.actions.filter((item) => isOverdue(item.deadline, item.status));
   if (overdue.length) {
@@ -495,7 +615,9 @@ function collectQuestions(
       why:
         kind === "credit"
           ? "An unpaid operational SLA is operating risk, not a covenant breach or a credit score."
-          : "Diligence should test whether management closes material items. VERIQ does not change production systems.",
+          : kind === "restructuring"
+            ? "An unpaid operational SLA is estate-operating risk, not a finding of wrongful trading."
+            : "Diligence should test whether management closes material items. VERIQ does not change production systems.",
       href: "/actions",
     });
   }

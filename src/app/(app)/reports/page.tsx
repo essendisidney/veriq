@@ -29,6 +29,12 @@ const reports = [
       "Business risk profile for lenders. Not a credit rating. Amounts UNKNOWN. Email a read-only share link.",
   },
   {
+    href: "/reports/restructuring",
+    title: "Restructuring / insolvency intelligence",
+    description:
+      "Operating continuity for counsel and insolvency practitioners. Not a legal opinion, not a statement of affairs. Email a read-only share link.",
+  },
+  {
     href: "/reports/cyber",
     title: "Cybersecurity report",
     description: "External posture, TLS, email authentication and cyber findings. Not a pentest.",
@@ -67,7 +73,7 @@ const reports = [
   {
     href: "/developers",
     title: "Institutional JSON",
-    description: "Banks, insurers and investors can query the same snapshot through the VERIQ API.",
+    description: "Banks, insurers, investors, counsel and insolvency practitioners can query the same snapshot through the VERIQ API.",
   },
 ];
 
@@ -76,7 +82,7 @@ export default function ReportsPage() {
     <div>
       <PageHeader
         title="Reports"
-        description="Board, executive, investor, lender and domain packs from the latest scan. Print to PDF, export CSV / JSON, or email a read-only share link."
+        description="Board, executive, investor, lender, counsel and domain packs from the latest scan. Print to PDF, export CSV / JSON, or email a read-only share link."
       />
       <div className="grid gap-4">
         {reports.map((item) => (

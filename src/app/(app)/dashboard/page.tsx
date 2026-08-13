@@ -576,6 +576,9 @@ export default function DashboardPage() {
                   <Link href="/reports/credit" className="text-[var(--accent)] hover:underline">
                     Credit
                   </Link>
+                  <Link href="/reports/restructuring" className="text-[var(--accent)] hover:underline">
+                    Counsel / IP
+                  </Link>
                 </div>
               </div>
               {topScenarios.length === 0 ? (

@@ -1,6 +1,7 @@
 import { SHARE_PREFIX } from "@/lib/api/keys";
 import { loadCompanySnapshot } from "@/lib/api/serve";
 import { reportFromSnapshot } from "@/lib/reports/from-snapshot";
+import { parsePackKind } from "@/lib/reports/pack";
 import { InstitutionalReportView } from "@/components/institutional-report";
 import { formatDate } from "@/lib/utils";
 
@@ -44,7 +45,7 @@ export default async function PublicSharePage({
     return <Unavailable title="Pack not found" />;
   }
 
-  const pack = body.pack === "credit" ? "credit" : "diligence";
+  const pack = parsePackKind(body.pack);
   const report = reportFromSnapshot(pack, body);
   if (!report) {
     return <Unavailable title="No scan to share" />;
@@ -55,8 +56,8 @@ export default async function PublicSharePage({
       <p className="mb-6 text-xs text-[var(--muted)] print:hidden">
         Read-only snapshot for {report.audience.toLowerCase()}
         {report.scannedAt ? ` · as of ${formatDate(report.scannedAt)}` : ""}
-        . Print to PDF if you need a file. This is intelligence, not a legal, audit, valuation or
-        credit opinion.
+        . Print to PDF if you need a file. This is intelligence, not a legal, audit, valuation,
+        credit or insolvency opinion.
       </p>
       {report.staleDays != null && (
         <p className="mb-6 rounded-2xl border border-[var(--high)] bg-[rgba(255,138,76,0.08)] px-4 py-3 text-sm text-[var(--ink)] print:hidden">

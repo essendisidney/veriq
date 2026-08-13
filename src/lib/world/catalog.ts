@@ -36,6 +36,26 @@ export const WORLD_KIND_LABELS: Record<WorldKind, string> = {
 
 export const WORLD_CATALOG: WorldDef[] = [
   {
+    id: "ke-insolvency-regime",
+    title: "Kenya Insolvency Act standing duties",
+    kind: "regulatory",
+    summary:
+      "The Insolvency Act, 2015 remains in force. Books of account, a statement of affairs and cooperation with an insolvency practitioner are standing duties — not a claim that this company is insolvent.",
+    jurisdictions: ["KE"],
+    industries: "*",
+    regulationCodes: ["KE-IA"],
+  },
+  {
+    id: "ke-advocates-conduct",
+    title: "Advocates Act / LSK professional conduct",
+    kind: "regulatory",
+    summary:
+      "Practising certificate, client-account and professional-conduct expectations remain in force for Kenyan advocates. Whether this firm holds current standing is UNKNOWN until attested. This is not a disciplinary finding.",
+    jurisdictions: ["KE"],
+    industries: ["professional_services"],
+    regulationCodes: ["KE-ADV"],
+  },
+  {
     id: "odpc-notification",
     title: "ODPC breach-notification expectation",
     kind: "regulatory",

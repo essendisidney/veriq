@@ -90,7 +90,7 @@ export default function DevelopersPage() {
     <div>
       <PageHeader
         title="VERIQ API"
-        description="Banks, insurers, investors and procurement platforms can query this company's risk intelligence with a Bearer key, or open a read-only share link. Secrets are shown once."
+        description="Banks, insurers, investors, counsel and insolvency practitioners can query this company's risk intelligence with a Bearer key, or open a read-only share link. Secrets are shown once."
       />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
@@ -149,6 +149,7 @@ export default function DevelopersPage() {
 
           <SharePack organizationId={currentOrg.id} kind="diligence" />
           <SharePack organizationId={currentOrg.id} kind="credit" />
+          <SharePack organizationId={currentOrg.id} kind="restructuring" />
 
           <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
             <h2 className="font-display text-xl">Endpoints</h2>
@@ -177,6 +178,15 @@ export default function DevelopersPage() {
                 </dd>
               </div>
               <div>
+                <dt className="font-mono text-[var(--accent)]">
+                  GET /api/v1/company/{"{id}"}/restructuring
+                </dt>
+                <dd className="mt-1 text-[var(--muted)]">
+                  Counsel / IP pack: operating continuity. Not a legal opinion, not a statement of
+                  affairs.
+                </dd>
+              </div>
+              <div>
                 <dt className="font-mono text-[var(--accent)]">GET /api/v1/company/{"{id}"}</dt>
                 <dd className="mt-1 text-[var(--muted)]">
                   Company profile, score, and top open findings. Evidence contents are not returned.
@@ -197,12 +207,15 @@ curl -H "Authorization: Bearer vq_live_…" \\
   ${origin}/api/v1/company/${companyRef}/diligence
 
 curl -H "Authorization: Bearer vq_live_…" \\
-  ${origin}/api/v1/company/${companyRef}/credit`}
+  ${origin}/api/v1/company/${companyRef}/credit
+
+curl -H "Authorization: Bearer vq_live_…" \\
+  ${origin}/api/v1/company/${companyRef}/restructuring`}
             </pre>
             <p className="mt-3 text-xs text-[var(--muted)]">
               Authorization: Bearer. Call this host, not the database. Keys and share tokens are
-              hashed at rest. This is intelligence, not a credit score, PD or valuation. A share
-              link at /p/{"{token}"} opens the same pack without a login.
+              hashed at rest. This is intelligence, not a credit score, PD, valuation or legal
+              opinion. A share link at /p/{"{token}"} opens the same pack without a login.
             </p>
           </div>
         </section>
@@ -214,6 +227,7 @@ curl -H "Authorization: Bearer vq_live_…" \\
               <li>Banks</li>
               <li>Insurers</li>
               <li>Investors</li>
+              <li>Law firms and insolvency practitioners</li>
               <li>Procurement platforms</li>
               <li>Auditors</li>
             </ul>
