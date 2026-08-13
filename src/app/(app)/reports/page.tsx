@@ -20,13 +20,13 @@ const reports = [
     href: "/reports/diligence",
     title: "Investor due diligence",
     description:
-      "Company Health Score across technology, cyber, regulatory, vendors, operations, AI and exposure. Not a valuation.",
+      "Company Health Score across technology, cyber, regulatory, vendors, operations, AI and exposure. Not a valuation. Email a read-only share link.",
   },
   {
     href: "/reports/credit",
     title: "Bank / credit intelligence",
     description:
-      "Business risk profile for lenders. Not a credit rating. Amounts UNKNOWN.",
+      "Business risk profile for lenders. Not a credit rating. Amounts UNKNOWN. Email a read-only share link.",
   },
   {
     href: "/reports/cyber",
@@ -76,7 +76,7 @@ export default function ReportsPage() {
     <div>
       <PageHeader
         title="Reports"
-        description="Board, executive, investor, lender and domain packs from the latest scan. Print to PDF or export CSV / JSON."
+        description="Board, executive, investor, lender and domain packs from the latest scan. Print to PDF, export CSV / JSON, or email a read-only share link."
       />
       <div className="grid gap-4">
         {reports.map((item) => (

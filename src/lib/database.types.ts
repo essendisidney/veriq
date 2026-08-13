@@ -338,6 +338,10 @@ export type Database = {
         Args: { p_token_hash: string; p_company: string };
         Returns: Json;
       };
+      veriq_api_snapshot: {
+        Args: { p_token_hash: string; p_company: string };
+        Returns: Json;
+      };
     };
     Enums: {
       membership_role: MembershipRole;

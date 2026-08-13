@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { createOrgApiKey, revokeOrgApiKey } from "@/lib/actions/api-keys";
+import { SharePack } from "@/components/share-pack";
 import { formatDateTime } from "@/lib/utils";
 
 type KeyRow = {
@@ -89,7 +90,7 @@ export default function DevelopersPage() {
     <div>
       <PageHeader
         title="VERIQ API"
-        description="Banks, insurers, investors and procurement platforms can query this company's risk intelligence with a Bearer key. The secret is shown once."
+        description="Banks, insurers, investors and procurement platforms can query this company's risk intelligence with a Bearer key, or open a read-only share link. Secrets are shown once."
       />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
@@ -146,6 +147,9 @@ export default function DevelopersPage() {
             </ul>
           )}
 
+          <SharePack organizationId={currentOrg.id} kind="diligence" />
+          <SharePack organizationId={currentOrg.id} kind="credit" />
+
           <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
             <h2 className="font-display text-xl">Endpoints</h2>
             <dl className="mt-4 space-y-3 text-sm">
@@ -153,6 +157,23 @@ export default function DevelopersPage() {
                 <dt className="font-mono text-[var(--accent)]">GET /api/v1/company/{"{id}"}/risk</dt>
                 <dd className="mt-1 text-[var(--muted)]">
                   Score dimensions for banks and insurers. {"{id}"} is the organisation id or slug.
+                </dd>
+              </div>
+              <div>
+                <dt className="font-mono text-[var(--accent)]">
+                  GET /api/v1/company/{"{id}"}/diligence
+                </dt>
+                <dd className="mt-1 text-[var(--muted)]">
+                  Investor pack: Company Health Score, pillars, flags, unknowns and questions. Not
+                  a valuation.
+                </dd>
+              </div>
+              <div>
+                <dt className="font-mono text-[var(--accent)]">
+                  GET /api/v1/company/{"{id}"}/credit
+                </dt>
+                <dd className="mt-1 text-[var(--muted)]">
+                  Bank pack: business risk profile. Not a credit rating. Amounts remain UNKNOWN.
                 </dd>
               </div>
               <div>
@@ -170,11 +191,18 @@ export default function DevelopersPage() {
             </dl>
             <pre className="mt-4 overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--elevated)] p-4 text-xs text-[var(--ink)]">
 {`curl -H "Authorization: Bearer vq_live_…" \\
-  ${origin}/api/v1/company/${companyRef}/risk`}
+  ${origin}/api/v1/company/${companyRef}/risk
+
+curl -H "Authorization: Bearer vq_live_…" \\
+  ${origin}/api/v1/company/${companyRef}/diligence
+
+curl -H "Authorization: Bearer vq_live_…" \\
+  ${origin}/api/v1/company/${companyRef}/credit`}
             </pre>
             <p className="mt-3 text-xs text-[var(--muted)]">
-              Authorization: Bearer. Keys are hashed at rest. This is intelligence, not a credit score.
-              Investor and lender packs are exportable as JSON from Reports — they are not a valuation or PD.
+              Authorization: Bearer. Keys and share tokens are hashed at rest. This is
+              intelligence, not a credit score, PD or valuation. A share link at /p/{"{token}"}{" "}
+              opens the same pack without a login.
             </p>
           </div>
         </section>

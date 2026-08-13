@@ -5,6 +5,20 @@ import { bearerToken, hashApiKey } from "@/lib/api/keys";
 export const API_DISCLAIMER =
   "VERIQ is intelligence, not a legal, audit or credit opinion. Final decisions remain with authorised professionals.";
 
+export type ApiFinding = {
+  id: string;
+  title: string;
+  description?: string;
+  severity: string;
+  category: string;
+  confidence: number;
+  status?: string;
+  why_it_matters: string | null;
+  recommendation?: string | null;
+  owner_role?: string | null;
+  fingerprint?: string;
+};
+
 export type ApiRiskPayload = {
   error?: string;
   company?: {
@@ -25,15 +39,13 @@ export type ApiRiskPayload = {
   data?: number | null;
   ai?: number | null;
   reputation?: number | null;
-  findings?: {
-    id: string;
-    title: string;
-    severity: string;
-    category: string;
-    confidence: number;
-    why_it_matters: string | null;
-  }[];
+  findings?: ApiFinding[];
   disclaimer?: string;
+};
+
+export type ApiSnapshotPayload = ApiRiskPayload & {
+  pack?: string;
+  summary?: Record<string, unknown>;
 };
 
 const corsHeaders = {
@@ -115,4 +127,70 @@ export async function loadCompanyRisk(
   }
 
   return { status: 200, body: { ...payload, disclaimer: API_DISCLAIMER } };
+}
+
+export async function loadCompanySnapshot(
+  token: string,
+  company: string | null,
+): Promise<{ status: number; body: ApiSnapshotPayload }> {
+  const tokenHash = hashApiKey(token);
+  if (rateLimited(tokenHash)) {
+    return { status: 429, body: { error: "rate_limited" } };
+  }
+
+  const supabase = createClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  );
+
+  const { data, error } = await supabase.rpc("veriq_api_snapshot", {
+    p_token_hash: tokenHash,
+    p_company: company ?? "",
+  });
+
+  if (error) {
+    return { status: 500, body: { error: "lookup_failed" } };
+  }
+
+  const payload = (data ?? {}) as ApiSnapshotPayload;
+  if (payload.error === "unauthorized") {
+    return { status: 401, body: { error: "unauthorized" } };
+  }
+  if (payload.error === "forbidden") {
+    return { status: 403, body: { error: "forbidden" } };
+  }
+  if (payload.error) {
+    return { status: 400, body: { error: payload.error } };
+  }
+
+  return { status: 200, body: { ...payload, disclaimer: API_DISCLAIMER } };
+}
+
+export async function loadInstitutionalPack(
+  authorization: string | null,
+  company: string,
+  kind: "diligence" | "credit",
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  const token = bearerToken(authorization);
+  if (!token) {
+    return { status: 401, body: { error: "unauthorized" } };
+  }
+
+  const { status, body } = await loadCompanySnapshot(token, company);
+  if (status !== 200) {
+    return { status, body: { error: body.error } };
+  }
+
+  const pack = body.pack ?? "full";
+  if (pack !== "full" && pack !== kind) {
+    return { status: 403, body: { error: "wrong_pack" } };
+  }
+
+  const { reportFromSnapshot } = await import("@/lib/reports/from-snapshot");
+  const report = reportFromSnapshot(kind, body);
+  if (!report) {
+    return { status: 404, body: { error: "no_snapshot" } };
+  }
+
+  return { status: 200, body: report as unknown as Record<string, unknown> };
 }

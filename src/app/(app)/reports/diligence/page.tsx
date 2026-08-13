@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ScanButton } from "@/components/scan-button";
 import { InstitutionalReportView } from "@/components/institutional-report";
+import { SharePack } from "@/components/share-pack";
 import { useReportBundle } from "@/lib/reports/use-report-bundle";
 import { buildDiligenceReport } from "@/lib/reports/institutional";
 import { countryLabel, industryLabel } from "@/lib/utils";
@@ -30,7 +31,10 @@ export default function DiligenceReportPage() {
           action={<ScanButton organizationId={currentOrg.id} />}
         />
       ) : (
-        <InstitutionalReportView report={report} />
+        <div className="space-y-6">
+          <SharePack organizationId={currentOrg.id} kind="diligence" />
+          <InstitutionalReportView report={report} />
+        </div>
       )}
     </div>
   );

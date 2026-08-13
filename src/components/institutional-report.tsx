@@ -17,7 +17,13 @@ const STATUS: Record<
   unknown: { label: "Unknown", variant: "danger" },
 };
 
-export function InstitutionalReportView({ report }: { report: InstitutionalReport }) {
+export function InstitutionalReportView({
+  report,
+  publicView = false,
+}: {
+  report: InstitutionalReport;
+  publicView?: boolean;
+}) {
   const fileBase = `veriq-${report.kind}-${slugFile(report.company.name)}`;
 
   function downloadJson() {
@@ -37,10 +43,22 @@ export function InstitutionalReportView({ report }: { report: InstitutionalRepor
         onCsv={downloadCsv}
       />
 
-      <p className="hidden text-xs text-[var(--muted)] print:block">
-        {industryLabel(report.company.industry)} · {countryLabel(report.company.country)} ·{" "}
-        {formatDateTime(report.generatedAt)}
-      </p>
+      <header className="hidden print:block print:mb-8">
+        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--accent)]">
+          {report.kind === "diligence"
+            ? "VERIQ Investor Intelligence"
+            : "VERIQ Bank Intelligence"}
+        </p>
+        <h1 className="mt-2 font-display text-4xl">{report.company.name}</h1>
+        <p className="mt-2 text-sm">
+          {industryLabel(report.company.industry)} · {countryLabel(report.company.country)}
+        </p>
+        <p className="mt-1 text-sm">
+          {report.kind === "diligence" ? "Company Health Score" : "Business Risk Profile"}{" "}
+          {report.healthScore}/100 · Generated {formatDateTime(report.generatedAt)}
+        </p>
+        <p className="mt-2 text-xs text-[var(--muted)]">{report.audience}</p>
+      </header>
 
       <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
         <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
@@ -92,7 +110,7 @@ export function InstitutionalReportView({ report }: { report: InstitutionalRepor
           <ul className="mt-4 space-y-3">
             {report.flags.map((item) => (
               <li key={item.id}>
-                <FlagRow flag={item} />
+                <FlagRow flag={item} publicView={publicView} />
               </li>
             ))}
           </ul>
@@ -109,7 +127,7 @@ export function InstitutionalReportView({ report }: { report: InstitutionalRepor
             >
               <p className="text-sm text-[var(--ink)]">{item.question}</p>
               <p className="mt-1 text-xs leading-5 text-[var(--muted)]">{item.why}</p>
-              {item.href && (
+              {item.href && !publicView && (
                 <Link
                   href={item.href}
                   className="mt-2 inline-block text-xs text-[var(--accent)] hover:underline print:hidden"
@@ -161,9 +179,13 @@ export function InstitutionalReportView({ report }: { report: InstitutionalRepor
             <ul className="mt-4 space-y-2">
               {report.vendors.map((item) => (
                 <li key={item.id} className="flex items-center justify-between gap-3 text-sm">
-                  <Link href={`/vendors/${item.id}`} className="hover:text-[var(--accent)]">
-                    {item.name}
-                  </Link>
+                  {publicView ? (
+                    <span>{item.name}</span>
+                  ) : (
+                    <Link href={`/vendors/${item.id}`} className="hover:text-[var(--accent)]">
+                      {item.name}
+                    </Link>
+                  )}
                   <span className="capitalize text-[var(--muted)]">
                     {item.criticality} · {item.risk}
                   </span>
@@ -215,7 +237,13 @@ export function InstitutionalReportView({ report }: { report: InstitutionalRepor
   );
 }
 
-function FlagRow({ flag }: { flag: InstitutionalReport["flags"][number] }) {
+function FlagRow({
+  flag,
+  publicView,
+}: {
+  flag: InstitutionalReport["flags"][number];
+  publicView: boolean;
+}) {
   const inner = (
     <div className="rounded-xl border border-[var(--border)] bg-[var(--elevated)] px-4 py-3 hover:border-[var(--accent)]">
       <div className="flex items-start justify-between gap-3">
@@ -229,7 +257,7 @@ function FlagRow({ flag }: { flag: InstitutionalReport["flags"][number] }) {
       <p className="mt-1 text-xs text-[var(--muted)]">{flag.detail}</p>
     </div>
   );
-  if (!flag.href) return inner;
+  if (!flag.href || publicView) return inner;
   return (
     <Link href={flag.href} className="block">
       {inner}
