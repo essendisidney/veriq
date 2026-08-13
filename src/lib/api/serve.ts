@@ -1,17 +1,8 @@
-import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/lib/database.types";
 import { bearerToken, hashApiKey } from "@/lib/api/keys";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 function lookupClient() {
-  const admin = createAdminClient();
-  if (admin) return admin;
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !anon) return null;
-  return createClient<Database>(url, anon, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+  return createAdminClient();
 }
 
 export const API_DISCLAIMER =
