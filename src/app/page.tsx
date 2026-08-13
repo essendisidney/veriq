@@ -44,13 +44,14 @@ export default async function HomePage() {
         <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--accent)]">
           Continuous corporate risk intelligence
         </p>
-        <h1 className="mt-5 max-w-3xl font-display text-5xl leading-[1.05] text-[var(--ink)] md:text-7xl">
+        <h1 className="mt-5 max-w-3xl font-display text-5xl font-medium italic leading-[1.08] text-[var(--ink)] md:text-7xl">
           See the risk before it becomes reality.
         </h1>
         <p className="mt-6 max-w-xl text-base text-[var(--muted)] md:text-lg">
           VERIQ builds a living model of your company from evidence — code,
           infrastructure, regulations — then tells management what can hurt the
-          business, why, and what to do next.
+          business, why, and what to do next. Banks and investors can query the
+          same intelligence through the VERIQ API.
         </p>
         <div className="mt-10 flex flex-col gap-3 sm:flex-row">
           <Link

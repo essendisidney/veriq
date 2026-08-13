@@ -53,6 +53,7 @@ export default function ScansPage() {
               overall?: number;
               risks?: number;
               repos?: number;
+              changes?: { summary?: string; added?: number; removed?: number };
             };
             return (
               <li
@@ -70,6 +71,9 @@ export default function ScansPage() {
                       : ""}
                     {typeof summary.risks === "number"
                       ? ` · ${summary.risks} risks`
+                      : ""}
+                    {summary.changes?.summary
+                      ? ` · ${summary.changes.summary}`
                       : ""}
                   </p>
                   {scan.error && (

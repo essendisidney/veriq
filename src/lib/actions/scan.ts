@@ -7,6 +7,41 @@ import {
   scanWebsite,
   scoreFromRisks,
 } from "@/lib/scan/engine";
+import { scanExposure } from "@/lib/scan/exposure";
+import { assessRegulations } from "@/lib/regulations/assess";
+import { assessVendors } from "@/lib/vendors/assess";
+import { declaredFromAsset, detectVendors } from "@/lib/vendors/detect";
+import { buildRiskGraph } from "@/lib/graph/build";
+import { assessFinance, parseAttested } from "@/lib/finance/assess";
+import { assessAi, detectAi, parseAttestedAi, systemFromAsset } from "@/lib/ai/assess";
+import { assessWorld } from "@/lib/world/assess";
+import {
+  buildSnapshot,
+  criticalityFor,
+  diffSnapshots,
+  significantChanges,
+  snapshotFromSummary,
+  type ScanSummarySlice,
+} from "@/lib/changes/diff";
+import { slaDeadlineIso } from "@/lib/risk/certainty";
+import type { Json, ScanType, Severity } from "@/lib/database.types";
+import {
+  postWebhook,
+  webhookFromAsset,
+  webhookPayload,
+} from "@/lib/webhooks/deliver";
+import { computeNextDue, parseCadence } from "@/lib/webhooks/cadence";
+
+const SCAN_COOLDOWN_MS = 90_000;
+const SCAN_STALE_MS = 10 * 60_000;
+
+async function isolate<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
+  try {
+    return await fn();
+  } catch {
+    return fallback;
+  }
+}
 
 export async function runOrganizationScan(organizationId: string) {
   const supabase = await createClient();
@@ -23,11 +58,70 @@ export async function runOrganizationScan(organizationId: string) {
 
   if (orgError || !org) return { error: "Organisation not found" };
 
+  const staleBefore = new Date(Date.now() - SCAN_STALE_MS).toISOString();
+  await supabase
+    .from("scans")
+    .update({
+      status: "failed",
+      completed_at: new Date().toISOString(),
+      error: "Scan timed out",
+    })
+    .eq("organization_id", organizationId)
+    .eq("status", "running")
+    .lt("started_at", staleBefore);
+
+  const { data: running } = await supabase
+    .from("scans")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .eq("status", "running")
+    .maybeSingle();
+  if (running) return { error: "A scan is already running for this company" };
+
+  const { data: recent } = await supabase
+    .from("scans")
+    .select("created_at")
+    .eq("organization_id", organizationId)
+    .eq("status", "completed")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (
+    recent?.created_at &&
+    Date.now() - new Date(recent.created_at).getTime() < SCAN_COOLDOWN_MS
+  ) {
+    return { error: "Wait a minute before running another scan" };
+  }
+
+  const { data: monitoring } = await supabase
+    .from("assets")
+    .select("id, metadata")
+    .eq("organization_id", organizationId)
+    .eq("type", "monitoring")
+    .eq("name", "Monitoring")
+    .maybeSingle();
+  const cadence = parseCadence(
+    (monitoring?.metadata as { cadence?: string } | null)?.cadence,
+  );
+  const dueAt = (monitoring?.metadata as { nextDueAt?: string } | null)?.nextDueAt;
+  const due = Boolean(dueAt && new Date(dueAt).getTime() <= Date.now());
+  const scanType: ScanType = due
+    ? cadence === "weekly"
+      ? "weekly"
+      : cadence === "daily"
+        ? "daily"
+        : org.github_login || org.website
+          ? "on_demand"
+          : "initial"
+    : org.github_login || org.website
+      ? "on_demand"
+      : "initial";
+
   const { data: scan, error: scanError } = await supabase
     .from("scans")
     .insert({
       organization_id: organizationId,
-      type: org.github_login || org.website ? "on_demand" : "initial",
+      type: scanType,
       status: "running",
       started_at: new Date().toISOString(),
     })
@@ -37,9 +131,41 @@ export async function runOrganizationScan(organizationId: string) {
   if (scanError || !scan) return { error: scanError?.message ?? "Scan failed" };
 
   try {
-    const [website, github] = await Promise.all([
-      org.website ? scanWebsite(org.website) : Promise.resolve(null),
-      org.github_login ? scanGithub(org.github_login) : Promise.resolve(null),
+    let hostname: string | null = null;
+    if (org.website) {
+      try {
+        const withProtocol = /^https?:\/\//i.test(org.website)
+          ? org.website
+          : `https://${org.website}`;
+        hostname = new URL(withProtocol).hostname;
+      } catch {
+        hostname = null;
+      }
+    }
+
+    const [website, github, exposure, previousScan, previousOpen] = await Promise.all([
+      org.website
+        ? isolate(() => scanWebsite(org.website!), null)
+        : Promise.resolve(null),
+      org.github_login
+        ? isolate(() => scanGithub(org.github_login!), null)
+        : Promise.resolve(null),
+      hostname
+        ? isolate(() => scanExposure(hostname), null)
+        : Promise.resolve(null),
+      supabase
+        .from("scans")
+        .select("id, summary")
+        .eq("organization_id", organizationId)
+        .eq("status", "completed")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("risks")
+        .select("id, fingerprint, title, severity, status")
+        .eq("organization_id", organizationId)
+        .in("status", ["open", "in_progress", "acknowledged"]),
     ]);
 
     if (website) {
@@ -85,25 +211,162 @@ export async function runOrganizationScan(organizationId: string) {
       }
     }
 
-    const { data: regulations } = await supabase
-      .from("regulations")
-      .select("*")
-      .eq("jurisdiction", org.country);
+    const assessments = assessRegulations({
+      country: org.country,
+      industry: org.industry,
+      website,
+      github,
+      exposure,
+    });
 
-    const applicable =
-      regulations?.filter(
-        (reg) =>
-          reg.industries.length === 0 ||
-          reg.industries.includes(org.industry),
-      ) ?? [];
+    const { data: vendorAssets } = await supabase
+      .from("assets")
+      .select("id, name, criticality, metadata")
+      .eq("organization_id", organizationId)
+      .eq("type", "vendor");
 
-    for (const reg of applicable) {
+    const declared = (vendorAssets ?? []).flatMap((row) => {
+      const vendor = declaredFromAsset({
+        name: row.name,
+        criticality: row.criticality,
+        metadata: row.metadata,
+      });
+      return vendor ? [vendor] : [];
+    });
+
+    const detected = detectVendors({
+      html: website?.html,
+      headers: website?.responseHeaders,
+      technologies: website?.technologies,
+      packages: github?.packages,
+    });
+    const vendorMap = assessVendors({ detected, declared });
+
+    const { data: aiAssets } = await supabase
+      .from("assets")
+      .select("id, name, metadata")
+      .eq("organization_id", organizationId)
+      .eq("type", "ai");
+    const { data: aiGovernance } = await supabase
+      .from("assets")
+      .select("metadata")
+      .eq("organization_id", organizationId)
+      .eq("type", "ai_governance")
+      .eq("name", "AI governance")
+      .maybeSingle();
+    const declaredAi = (aiAssets ?? []).flatMap((row) => {
+      const system = systemFromAsset(row);
+      return system ? [system] : [];
+    });
+    const ai = assessAi({
+      detected: detectAi({
+        html: website?.html,
+        packages: github?.packages,
+        vendors: vendorMap,
+      }),
+      declared: declaredAi,
+      attested: parseAttestedAi(aiGovernance?.metadata),
+    });
+    if (website) website.html = "";
+
+    const { data: financeAsset } = await supabase
+      .from("assets")
+      .select("metadata")
+      .eq("organization_id", organizationId)
+      .eq("type", "finance")
+      .eq("name", "Financial signals")
+      .maybeSingle();
+    const finance = assessFinance({
+      vendors: vendorMap,
+      industry: org.industry,
+      attested: parseAttested(financeAsset?.metadata),
+    });
+    const world = assessWorld({
+      country: org.country,
+      industry: org.industry,
+      vendors: vendorMap,
+      ai,
+      assessments,
+      exposure,
+      packageCount: github?.packages.length ?? 0,
+    });
+
+    for (const vendor of vendorMap.vendors) {
+      const existing = (vendorAssets ?? []).find((row) => {
+        const meta = row.metadata as { vendorId?: string } | null;
+        return meta?.vendorId === vendor.id;
+      });
+      const metadata: Json = {
+        vendorId: vendor.id,
+        category: vendor.category,
+        processesData: vendor.processesData,
+        connectsToProduction: vendor.connectsToProduction,
+        dataClasses: vendor.dataClasses,
+        origin: vendor.origin,
+        sources: vendor.sources,
+        risk: vendor.risk,
+        reason: vendor.reason,
+      };
+      if (existing) {
+        await supabase
+          .from("assets")
+          .update({
+            name: vendor.name,
+            criticality: vendor.criticality,
+            metadata,
+          })
+          .eq("id", existing.id);
+      } else {
+        await supabase.from("assets").insert({
+          organization_id: organizationId,
+          name: vendor.name,
+          type: "vendor",
+          criticality: vendor.criticality,
+          metadata,
+        });
+      }
+    }
+
+    for (const system of ai.systems) {
+      const existing = (aiAssets ?? []).find((row) => {
+        const meta = row.metadata as { systemId?: string } | null;
+        return meta?.systemId === system.id;
+      });
+      const metadata: Json = {
+        systemId: system.id,
+        category: system.category,
+        processesData: system.processesData,
+        origin: system.origin,
+        sources: system.sources,
+      };
+      if (existing) {
+        await supabase
+          .from("assets")
+          .update({ name: system.name, criticality: "high", metadata })
+          .eq("id", existing.id);
+      } else {
+        await supabase.from("assets").insert({
+          organization_id: organizationId,
+          name: system.name,
+          type: "ai",
+          criticality: "high",
+          metadata,
+        });
+      }
+    }
+
+    const { data: catalog } = await supabase.from("regulations").select("*");
+    const byCode = new Map((catalog ?? []).map((row) => [row.code, row]));
+
+    for (const assessment of assessments) {
+      const row = byCode.get(assessment.code);
+      if (!row) continue;
       await supabase.from("organization_regulations").upsert(
         {
           organization_id: organizationId,
-          regulation_id: reg.id,
+          regulation_id: row.id,
           applicability: "applicable",
-          notes: "Mapped from country and industry during scan",
+          notes: `Coverage ${assessment.coverage}% of observable evidence`,
         },
         { onConflict: "organization_id,regulation_id" },
       );
@@ -112,17 +375,45 @@ export async function runOrganizationScan(organizationId: string) {
     const drafts = buildRisks({
       website,
       github,
+      exposure,
+      assessments,
+      vendors: vendorMap,
+      finance,
+      ai,
+      world,
       country: org.country,
       industry: org.industry,
+    });
+
+    const graph = buildRiskGraph({
+      company: {
+        name: org.name,
+        country: org.country,
+        industry: org.industry,
+      },
+      website,
+      github,
+      assessments,
+      vendors: vendorMap,
+      ai,
+      world,
+      risks: drafts,
     });
 
     for (const draft of drafts) {
       const { data: existing } = await supabase
         .from("risks")
-        .select("id")
+        .select("id, status")
         .eq("organization_id", organizationId)
         .eq("fingerprint", draft.fingerprint)
         .maybeSingle();
+
+      const preserved =
+        existing?.status === "accepted" ||
+        existing?.status === "acknowledged" ||
+        existing?.status === "in_progress"
+          ? existing.status
+          : "open";
 
       let riskId = existing?.id;
       if (riskId) {
@@ -137,12 +428,14 @@ export async function runOrganizationScan(organizationId: string) {
             likelihood: draft.likelihood,
             impact: draft.impact,
             confidence: draft.confidence,
+            certainty: draft.certainty ?? "potential",
             why_it_matters: draft.why_it_matters,
             recommendation: draft.recommendation,
             owner_role: draft.owner_role,
-            status: "open",
+            status: preserved,
           })
           .eq("id", riskId);
+        await supabase.from("evidence").delete().eq("risk_id", riskId);
       } else {
         const { data: inserted, error: riskError } = await supabase
           .from("risks")
@@ -156,6 +449,7 @@ export async function runOrganizationScan(organizationId: string) {
             likelihood: draft.likelihood,
             impact: draft.impact,
             confidence: draft.confidence,
+            certainty: draft.certainty ?? "potential",
             why_it_matters: draft.why_it_matters,
             recommendation: draft.recommendation,
             owner_role: draft.owner_role,
@@ -179,13 +473,13 @@ export async function runOrganizationScan(organizationId: string) {
         })),
       );
 
-      if (draft.action) {
+      if (draft.action && preserved !== "accepted") {
         const { data: existingAction } = await supabase
           .from("actions")
           .select("id")
           .eq("organization_id", organizationId)
           .eq("risk_id", riskId)
-          .eq("status", "open")
+          .in("status", ["open", "in_progress"])
           .maybeSingle();
 
         if (!existingAction) {
@@ -195,12 +489,129 @@ export async function runOrganizationScan(organizationId: string) {
             title: draft.action.title,
             owner_role: draft.action.owner_role,
             priority: draft.action.priority,
+            deadline: slaDeadlineIso(draft.action.priority),
           });
         }
       }
     }
 
+    const currentFingerprints = new Set(drafts.map((draft) => draft.fingerprint));
+    for (const row of previousOpen.data ?? []) {
+      if (currentFingerprints.has(row.fingerprint)) continue;
+      await supabase
+        .from("risks")
+        .update({ status: "resolved", scan_id: scan.id })
+        .eq("id", row.id);
+    }
+
     const score = scoreFromRisks(drafts);
+    const previousFindings = (previousOpen.data ?? []).map((row) => ({
+      fingerprint: row.fingerprint,
+      title: row.title,
+      severity: row.severity as Severity,
+    }));
+    const snapshot = buildSnapshot({
+      website: website?.hostname ?? null,
+      github: github?.login ?? null,
+      overall: score.overall,
+      repos: github?.repos.map((repo) => repo.fullName) ?? [],
+      packages: github?.packages ?? [],
+      vendors: vendorMap,
+      regulations: assessments,
+      ai,
+      exposure,
+      findings: drafts.map((draft) => ({
+        fingerprint: draft.fingerprint,
+        title: draft.title,
+        severity: draft.severity,
+      })),
+    });
+    const previousSummary = previousScan.data?.summary as ScanSummarySlice | null | undefined;
+    const changes = diffSnapshots({
+      previousScanId: previousScan.data?.id ?? null,
+      previous: previousScan.data
+        ? snapshotFromSummary(previousSummary, previousFindings)
+        : null,
+      current: snapshot,
+    });
+    const alerts = significantChanges(changes);
+    if (alerts.length) {
+      await supabase.from("assets").insert(
+        alerts.map((change) => ({
+          organization_id: organizationId,
+          name: change.title,
+          type: "notification",
+          criticality: criticalityFor(change),
+          metadata: {
+            kind: change.kind,
+            polarity: change.polarity,
+            detail: change.detail,
+            href: change.href ?? "/changes",
+            scanId: scan.id,
+            changeId: change.id,
+            read: false,
+          } satisfies Json,
+        })),
+      );
+    }
+
+    try {
+      const { data: hooks } = await supabase
+        .from("assets")
+        .select("id, name, metadata")
+        .eq("organization_id", organizationId)
+        .eq("type", "webhook");
+      const payload = webhookPayload({
+        event: "scan.completed",
+        organization: { id: org.id, slug: org.slug, name: org.name },
+        scanId: scan.id,
+        overall: score.overall,
+        changes,
+        alerts,
+      });
+      await Promise.all(
+        (hooks ?? []).map(async (row) => {
+          const stored = webhookFromAsset(row);
+          if (!stored) return;
+          const result = await postWebhook({
+            url: stored.url,
+            secret: stored.secret,
+            payload,
+          });
+          await supabase
+            .from("assets")
+            .update({
+              metadata: {
+                ...((row.metadata as Record<string, unknown>) ?? {}),
+                lastStatus: result.status,
+                lastError: result.error,
+                lastDeliveredAt: new Date().toISOString(),
+              },
+            })
+            .eq("id", row.id);
+        }),
+      );
+    } catch {
+      // Delivery must never fail the scan.
+    }
+
+    if (monitoring && cadence !== "off") {
+      try {
+        await supabase
+          .from("assets")
+          .update({
+            metadata: {
+              ...((monitoring.metadata as Record<string, unknown>) ?? {}),
+              lastScanAt: new Date().toISOString(),
+              nextDueAt: computeNextDue(cadence),
+            },
+          })
+          .eq("id", monitoring.id);
+      } catch {
+        // Cadence stamp must never fail the scan.
+      }
+    }
+
     await supabase.from("scores").insert({
       organization_id: organizationId,
       scan_id: scan.id,
@@ -217,8 +628,17 @@ export async function runOrganizationScan(organizationId: string) {
           github: github?.login ?? null,
           repos: github?.repos.length ?? 0,
           risks: drafts.length,
-          regulations: applicable.length,
+          regulations: assessments.length,
+          regulatory: assessments,
+          vendors: vendorMap,
+          graph,
+          finance,
+          ai,
+          world,
           overall: score.overall,
+          exposure,
+          snapshot,
+          changes,
         },
       })
       .eq("id", scan.id);

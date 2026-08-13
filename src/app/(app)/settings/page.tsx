@@ -118,6 +118,17 @@ export default function SettingsPage() {
           </Button>
         </div>
       </form>
+      <p className="mt-6 text-sm text-[var(--muted)]">
+        Banks and investors query this company through the{" "}
+        <a href="/developers" className="text-[var(--accent)] hover:underline">
+          VERIQ API
+        </a>
+        . Scan cadence and outbound webhooks live under{" "}
+        <a href="/integrations" className="text-[var(--accent)] hover:underline">
+          Integrations
+        </a>
+        .
+      </p>
     </div>
   );
 }

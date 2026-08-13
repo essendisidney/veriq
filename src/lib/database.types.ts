@@ -18,6 +18,8 @@ export type RiskStatus =
   | "resolved"
   | "accepted";
 
+export type Certainty = "confirmed" | "potential" | "informational";
+
 export type ScanType = "initial" | "daily" | "weekly" | "event" | "on_demand";
 export type ScanStatus = "queued" | "running" | "completed" | "failed";
 export type TrustStatus = "observed" | "inferred" | "predicted" | "unknown";
@@ -117,6 +119,7 @@ export type Risk = {
   impact: number;
   confidence: number;
   status: RiskStatus;
+  certainty: Certainty;
   why_it_matters: string | null;
   recommendation: string | null;
   owner_role: string | null;
@@ -330,6 +333,10 @@ export type Database = {
       is_org_member: {
         Args: { org_id: string };
         Returns: boolean;
+      };
+      veriq_api_risk: {
+        Args: { p_token_hash: string; p_company: string };
+        Returns: Json;
       };
     };
     Enums: {

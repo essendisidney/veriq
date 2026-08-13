@@ -65,3 +65,23 @@ export function SeverityBadge({ severity }: { severity: Severity }) {
     </Badge>
   );
 }
+
+export function CertaintyBadge({
+  certainty,
+}: {
+  certainty: "confirmed" | "potential" | "informational";
+}) {
+  const variant =
+    certainty === "confirmed"
+      ? "accent"
+      : certainty === "informational"
+        ? "muted"
+        : "warning";
+  const label =
+    certainty === "confirmed"
+      ? "Confirmed"
+      : certainty === "informational"
+        ? "Informational"
+        : "Potential";
+  return <Badge variant={variant}>{label}</Badge>;
+}

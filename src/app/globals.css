@@ -30,8 +30,8 @@
   --color-medium: var(--medium);
   --color-low: var(--low);
   --color-good: var(--good);
-  --font-sans: var(--font-ibm);
-  --font-display: var(--font-instrument);
+  --font-sans: var(--font-geist);
+  --font-display: var(--font-newsreader);
 }
 
 * {
@@ -46,7 +46,9 @@ body {
   min-height: 100%;
   background: var(--bg);
   color: var(--ink);
-  font-family: var(--font-ibm), system-ui, sans-serif;
+  font-family: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  font-feature-settings: "ss01", "cv11", "kern";
+  letter-spacing: -0.011em;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -54,7 +56,22 @@ h1,
 h2,
 h3,
 .font-display {
-  font-family: var(--font-instrument), Georgia, serif;
+  font-family: var(--font-newsreader), "Times New Roman", serif;
+  font-optical-sizing: auto;
+  font-feature-settings: "kern", "liga", "onum";
+  letter-spacing: -0.025em;
+}
+
+h1,
+.font-display {
+  font-variation-settings: "opsz" 72;
+  font-weight: 500;
+}
+
+h2,
+h3 {
+  font-variation-settings: "opsz" 36;
+  font-weight: 500;
 }
 
 :focus-visible {
@@ -66,9 +83,25 @@ input,
 select,
 textarea {
   font-family: inherit;
+  letter-spacing: 0;
 }
 
 ::selection {
   background: var(--accent);
   color: var(--bg);
+}
+
+@media print {
+  body {
+    background: #fff;
+    color: #111;
+  }
+
+  .report-print h1,
+  .report-print h2,
+  .report-print p,
+  .report-print li,
+  .report-print span {
+    break-inside: avoid;
+  }
 }

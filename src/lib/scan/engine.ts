@@ -1,4 +1,12 @@
 import type { ActionPriority, Severity, TrustStatus } from "@/lib/database.types";
+import type { Exposure } from "@/lib/scan/exposure";
+import type { RegulationAssessment } from "@/lib/regulations/assess";
+import type { VendorMap } from "@/lib/vendors/assess";
+import type { FinanceAssessment } from "@/lib/finance/assess";
+import type { AiAssessment } from "@/lib/ai/assess";
+import type { WorldAssessment } from "@/lib/world/assess";
+import { certaintyFor, type Certainty } from "@/lib/risk/certainty";
+import { safeFetch } from "@/lib/scan/safe-fetch";
 
 export type DraftRisk = {
   fingerprint: string;
@@ -9,6 +17,7 @@ export type DraftRisk = {
   likelihood: number;
   impact: number;
   confidence: number;
+  certainty?: Certainty;
   why_it_matters: string;
   recommendation: string;
   owner_role: string;
@@ -33,6 +42,8 @@ export type WebsiteScan = {
   statusCode: number | null;
   reachable: boolean;
   securityHeaders: Record<string, string | null>;
+  responseHeaders: Record<string, string | null>;
+  html: string;
   technologies: string[];
   error?: string;
 };
@@ -51,6 +62,7 @@ export type GithubRepoScan = {
   sensitiveFiles: string[];
   hasGitignore: boolean;
   hasPackageJson: boolean;
+  packages: string[];
 };
 
 export type GithubScan = {
@@ -58,6 +70,7 @@ export type GithubScan = {
   kind: "User" | "Organization" | "unknown";
   publicRepos: number;
   repos: GithubRepoScan[];
+  packages: string[];
   error?: string;
 };
 
@@ -71,6 +84,20 @@ const HEADER_KEYS = [
 ] as const;
 
 const SENSITIVE_PATHS = [".env", "credentials.json"];
+const GITHUB_HEADERS = {
+  accept: "application/vnd.github+json",
+  "user-agent": "VERIQ-Scan/0.1",
+  "x-github-api-version": "2022-11-28",
+} as const;
+
+export function normalizeGithubLogin(input: string) {
+  const handle = input.trim().replace(/^@/, "");
+  if (!/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/.test(handle)) {
+    return null;
+  }
+  if (handle.includes("--")) return null;
+  return handle;
+}
 
 function normalizeUrl(input: string) {
   const trimmed = input.trim();
@@ -109,77 +136,136 @@ function detectTechnologies(html: string, headers: Headers) {
   return [...tech];
 }
 
+function unreachableWebsite(
+  parsed: URL,
+  url: string,
+  https: boolean,
+  error: string,
+): WebsiteScan {
+  return {
+    hostname: parsed.hostname,
+    url,
+    https,
+    statusCode: null,
+    reachable: false,
+    securityHeaders: {},
+    responseHeaders: {},
+    html: "",
+    technologies: [],
+    error,
+  };
+}
+
 export async function scanWebsite(website: string): Promise<WebsiteScan | null> {
   const parsed = normalizeUrl(website);
   if (!parsed) return null;
 
   const url = parsed.toString();
   const https = parsed.protocol === "https:";
+  const fetched = await safeFetch(url, { timeoutMs: 12000, maxBytes: 500_000 });
+  if ("error" in fetched) {
+    return unreachableWebsite(parsed, url, https, fetched.error);
+  }
 
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12000);
-    const response = await fetch(url, {
-      method: "GET",
-      redirect: "follow",
-      signal: controller.signal,
-      headers: { "user-agent": "VERIQ-Scan/0.1 (corporate-risk-intelligence)" },
-    });
-    clearTimeout(timeout);
-    const html = await response.text().catch(() => "");
+    const { response } = fetched;
+    const html = (await response.text().catch(() => "")).slice(0, 80_000);
     const securityHeaders: Record<string, string | null> = {};
     for (const key of HEADER_KEYS) {
       securityHeaders[key] = response.headers.get(key);
     }
+    const extraHeaderKeys = [
+      "server",
+      "x-powered-by",
+      "cf-ray",
+      "x-vercel-id",
+      "x-vercel-cache",
+      "x-nf-request-id",
+      "x-amz-cf-id",
+      "x-amz-request-id",
+    ];
+    const responseHeaders: Record<string, string | null> = { ...securityHeaders };
+    for (const key of extraHeaderKeys) {
+      responseHeaders[key] = response.headers.get(key);
+    }
+    const finalUrl = fetched.url || url;
 
     return {
       hostname: parsed.hostname,
-      url: response.url || url,
-      https: new URL(response.url || url).protocol === "https:" && https,
+      url: finalUrl,
+      https: new URL(finalUrl).protocol === "https:" && https,
       statusCode: response.status,
       reachable: response.ok || response.status < 500,
       securityHeaders,
-      technologies: detectTechnologies(html.slice(0, 80_000), response.headers),
+      responseHeaders,
+      html,
+      technologies: detectTechnologies(html, response.headers),
     };
   } catch (error) {
-    return {
-      hostname: parsed.hostname,
+    return unreachableWebsite(
+      parsed,
       url,
       https,
-      statusCode: null,
-      reachable: false,
-      securityHeaders: {},
-      technologies: [],
-      error: error instanceof Error ? error.message : "Website unreachable",
-    };
+      error instanceof Error ? error.message : "Website unreachable",
+    );
+  }
+}
+
+async function githubFetch(path: string, accept?: string) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+  try {
+    return await fetch(`https://api.github.com${path}`, {
+      headers: {
+        ...GITHUB_HEADERS,
+        ...(accept ? { accept } : {}),
+      },
+      signal: controller.signal,
+      next: { revalidate: 0 },
+    });
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
 async function githubJson<T>(path: string): Promise<T | null> {
-  const response = await fetch(`https://api.github.com${path}`, {
-    headers: {
-      accept: "application/vnd.github+json",
-      "user-agent": "VERIQ-Scan/0.1",
-      "x-github-api-version": "2022-11-28",
-    },
-    next: { revalidate: 0 },
-  });
-  if (!response.ok) return null;
+  const response = await githubFetch(path);
+  if (!response?.ok) return null;
   return (await response.json()) as T;
 }
 
-async function githubExists(fullName: string, filePath: string) {
-  const response = await fetch(
-    `https://api.github.com/repos/${fullName}/contents/${filePath}`,
-    {
-      headers: {
-        accept: "application/vnd.github+json",
-        "user-agent": "VERIQ-Scan/0.1",
-        "x-github-api-version": "2022-11-28",
-      },
-    },
+async function githubPackageNames(
+  fullName: string,
+): Promise<{ exists: boolean; names: string[] }> {
+  const response = await githubFetch(
+    `/repos/${fullName}/contents/package.json`,
+    "application/vnd.github.raw+json",
   );
-  return response.status === 200;
+  if (!response?.ok) return { exists: false, names: [] };
+  try {
+    const pkg = (await response.json()) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+    return {
+      exists: true,
+      names: [
+        ...Object.keys(pkg.dependencies ?? {}),
+        ...Object.keys(pkg.devDependencies ?? {}),
+      ],
+    };
+  } catch {
+    return { exists: true, names: [] };
+  }
+}
+
+async function githubExists(fullName: string, filePath: string) {
+  const response = await githubFetch(
+    `/repos/${fullName}/contents/${filePath}`,
+  );
+  return response?.status === 200;
 }
 
 type GithubUser = {
@@ -202,8 +288,17 @@ type GithubRepo = {
 };
 
 export async function scanGithub(login: string): Promise<GithubScan | null> {
-  const handle = login.trim().replace(/^@/, "");
-  if (!handle) return null;
+  const handle = normalizeGithubLogin(login);
+  if (!handle) {
+    return {
+      login: login.trim().replace(/^@/, "") || "unknown",
+      kind: "unknown",
+      publicRepos: 0,
+      repos: [],
+      packages: [],
+      error: "GitHub login is not a valid username or organisation",
+    };
+  }
 
   const user = await githubJson<GithubUser>(`/users/${handle}`);
   if (!user) {
@@ -212,6 +307,7 @@ export async function scanGithub(login: string): Promise<GithubScan | null> {
       kind: "unknown",
       publicRepos: 0,
       repos: [],
+      packages: [],
       error: "GitHub account not found or not publicly reachable",
     };
   }
@@ -223,14 +319,14 @@ export async function scanGithub(login: string): Promise<GithubScan | null> {
 
   const scanned = await Promise.all(
     repos.slice(0, 5).map(async (repo) => {
-      const [sensitiveHits, hasGitignore, hasPackageJson] = await Promise.all([
+      const [sensitiveHits, hasGitignore, pkg] = await Promise.all([
         Promise.all(
           SENSITIVE_PATHS.map(async (file) =>
             (await githubExists(repo.full_name, file)) ? file : null,
           ),
         ),
         githubExists(repo.full_name, ".gitignore"),
-        githubExists(repo.full_name, "package.json"),
+        githubPackageNames(repo.full_name),
       ]);
 
       return {
@@ -248,7 +344,8 @@ export async function scanGithub(login: string): Promise<GithubScan | null> {
           Boolean(file),
         ),
         hasGitignore,
-        hasPackageJson,
+        hasPackageJson: pkg.exists,
+        packages: pkg.names,
       };
     }),
   );
@@ -258,12 +355,19 @@ export async function scanGithub(login: string): Promise<GithubScan | null> {
     kind: user.type,
     publicRepos: user.public_repos,
     repos: scanned,
+    packages: [...new Set(scanned.flatMap((repo) => repo.packages))],
   };
 }
 
 export function buildRisks(input: {
   website: WebsiteScan | null;
   github: GithubScan | null;
+  exposure: Exposure | null;
+  assessments: RegulationAssessment[];
+  vendors: VendorMap | null;
+  finance: FinanceAssessment | null;
+  ai: AiAssessment | null;
+  world: WorldAssessment | null;
   country: string;
   industry: string;
 }): DraftRisk[] {
@@ -369,6 +473,169 @@ export function buildRisks(input: {
           },
         });
       }
+    }
+  }
+
+  if (input.exposure) {
+    const { hostname, tls, httpsRedirect, spf, dmarc, dmarcPolicy, hostnames } =
+      input.exposure;
+
+    if (tls?.daysRemaining !== null && tls && tls.daysRemaining < 21) {
+      const expired = tls.daysRemaining < 0;
+      risks.push({
+        fingerprint: `tls:expiry:${hostname}`,
+        title: expired
+          ? "TLS certificate has expired"
+          : "TLS certificate expires soon",
+        description: expired
+          ? `The certificate for ${hostname} expired ${Math.abs(tls.daysRemaining)} days ago.`
+          : `The certificate for ${hostname} expires in ${tls.daysRemaining} days.`,
+        category: "cybersecurity",
+        severity: expired || tls.daysRemaining < 7 ? "critical" : "high",
+        likelihood: 85,
+        impact: 80,
+        confidence: 96,
+        why_it_matters:
+          "Expired or soon-to-expire certificates cause outages, browser warnings and lost customer trust. They are also a common operational-risk finding for boards.",
+        recommendation:
+          "Renew the certificate, enable auto-renewal, and monitor expiry with at least 30 days of lead time.",
+        owner_role: "Engineering",
+        evidence: [
+          {
+            source_type: "tls",
+            source_reference: hostname,
+            content: `Issuer: ${tls.issuer ?? "unknown"}. Valid to: ${tls.validTo ?? "unknown"}.`,
+            confidence: 96,
+            trust_status: "observed",
+          },
+        ],
+        action: {
+          title: `Renew TLS for ${hostname}`,
+          owner_role: "Engineering",
+          priority: expired ? "critical" : "high",
+        },
+      });
+    }
+
+    if (httpsRedirect === false) {
+      risks.push({
+        fingerprint: `web:http-redirect:${hostname}`,
+        title: "HTTP does not redirect to HTTPS",
+        description: `${hostname} still answers on HTTP without sending visitors to HTTPS.`,
+        category: "cybersecurity",
+        severity: "high",
+        likelihood: 70,
+        impact: 70,
+        confidence: 90,
+        why_it_matters:
+          "Users and integrations that type the domain without https:// can be served an unencrypted first hop.",
+        recommendation:
+          "Redirect all HTTP requests to HTTPS at the edge, then enable HSTS.",
+        owner_role: "Engineering",
+        evidence: [
+          {
+            source_type: "website",
+            source_reference: `http://${hostname}/`,
+            content: "HTTP response did not redirect to an https:// location",
+            confidence: 90,
+            trust_status: "observed",
+          },
+        ],
+        action: {
+          title: "Force HTTPS redirects on the primary domain",
+          owner_role: "Engineering",
+          priority: "high",
+        },
+      });
+    }
+
+    if (!spf || !dmarc) {
+      risks.push({
+        fingerprint: `dns:email-auth:${hostname}`,
+        title: "Email authentication records are incomplete",
+        description: `${hostname} is missing ${[
+          !spf ? "SPF" : null,
+          !dmarc ? "DMARC" : null,
+        ]
+          .filter(Boolean)
+          .join(" and ")}.`,
+        category: "cybersecurity",
+        severity: !dmarc ? "medium" : "low",
+        likelihood: 65,
+        impact: 60,
+        confidence: 88,
+        why_it_matters:
+          "Without SPF and DMARC, the domain can be spoofed. That becomes a fraud, brand and customer-trust risk — not only an IT issue.",
+        recommendation:
+          "Publish an SPF record and a DMARC policy (start with p=quarantine, then p=reject).",
+        owner_role: "Engineering",
+        evidence: [
+          {
+            source_type: "dns",
+            source_reference: hostname,
+            content: `SPF=${spf ? "present" : "missing"}; DMARC=${dmarc ? `present (${dmarcPolicy})` : "missing"}`,
+            confidence: 88,
+            trust_status: "observed",
+          },
+        ],
+        action: {
+          title: "Publish SPF and DMARC for the company domain",
+          owner_role: "Engineering",
+          priority: "medium",
+        },
+      });
+    } else if (dmarcPolicy === "none") {
+      risks.push({
+        fingerprint: `dns:dmarc-none:${hostname}`,
+        title: "DMARC policy is monitor-only",
+        description: `${hostname} has DMARC with p=none, so spoofed mail is not quarantined or rejected.`,
+        category: "cybersecurity",
+        severity: "low",
+        likelihood: 55,
+        impact: 50,
+        confidence: 86,
+        why_it_matters:
+          "A none policy is useful while monitoring. It does not protect customers from lookalike mail.",
+        recommendation:
+          "Move DMARC from p=none to p=quarantine, then p=reject, once legitimate sources are aligned.",
+        owner_role: "Engineering",
+        evidence: [
+          {
+            source_type: "dns",
+            source_reference: `_dmarc.${hostname}`,
+            content: "DMARC policy observed: p=none",
+            confidence: 86,
+            trust_status: "observed",
+          },
+        ],
+      });
+    }
+
+    if (hostnames.length > 8) {
+      risks.push({
+        fingerprint: `ct:surface:${hostname}`,
+        title: "Broad public hostname surface",
+        description: `Certificate transparency lists ${hostnames.length} hostnames under this domain.`,
+        category: "technology",
+        severity: "informational",
+        likelihood: 40,
+        impact: 45,
+        confidence: 80,
+        why_it_matters:
+          "Every public hostname is part of the attack surface. Forgotten staging or dev names often linger in certificates.",
+        recommendation:
+          "Review the hostname list, retire unused names, and keep development endpoints off the public internet.",
+        owner_role: "Engineering",
+        evidence: [
+          {
+            source_type: "certificate-transparency",
+            source_reference: hostname,
+            content: `Observed hostnames: ${hostnames.slice(0, 15).join(", ")}`,
+            confidence: 80,
+            trust_status: "observed",
+          },
+        ],
+      });
     }
   }
 
@@ -554,67 +821,605 @@ export function buildRisks(input: {
     });
   }
 
-  if (input.country === "KE") {
-    risks.push({
-      fingerprint: `reg:ke-dpa:${input.industry}`,
-      title: "Kenya Data Protection Act obligations likely apply",
-      description:
-        "Based on country and industry, the organisation is likely a data controller or processor under the Kenya Data Protection Act, 2019.",
-      category: "regulatory",
-      severity: "medium",
-      likelihood: 75,
-      impact: 70,
-      confidence: 72,
-      why_it_matters:
-        "DPA duties include lawful basis, security safeguards, data subject rights and possible ODPC registration. Gaps here become both regulatory and customer-trust issues.",
-      recommendation:
-        "Map personal data processed, appoint a data protection contact, and collect evidence of security safeguards.",
-      owner_role: "Compliance",
-      evidence: [
-        {
-          source_type: "regulation",
-          source_reference: "KE-DPA",
-          content: `Country=KE, industry=${input.industry}. Applicability inferred from company profile, not from a legal opinion.`,
-          confidence: 72,
-          trust_status: "inferred",
-        },
-      ],
-      action: {
-        title: "Collect DPA evidence: data inventory and safeguards",
-        owner_role: "Compliance",
-        priority: "high",
-      },
-    });
+  for (const assessment of input.assessments) {
+    const unknown = assessment.evidence.filter((item) => item.status === "unknown");
+    const gaps = assessment.evidence.filter((item) => item.status === "gap");
+    const publicSecretGap = gaps.some((item) => item.key === "no_public_secrets");
 
-    if (input.industry === "fintech" || input.industry === "financial_services") {
+    if (publicSecretGap && assessment.category === "privacy") {
       risks.push({
-        fingerprint: "reg:ke-aml-cbk",
-        title: "AML/CFT and CBK cybersecurity expectations apply",
-        description:
-          "Kenyan financial and payment businesses are typically in scope for AML/CFT controls and CBK cybersecurity guidance.",
+        fingerprint: `reg:secrets-x-privacy:${assessment.code}`,
+        title: `Public credential exposure under ${assessment.code}`,
+        description: `${assessment.name} expects security safeguards, and this scan observed a public file that often holds secrets.`,
         category: "regulatory",
-        severity: "high",
+        severity: "critical",
         likelihood: 80,
-        impact: 85,
-        confidence: 74,
+        impact: 90,
+        confidence: 84,
         why_it_matters:
-          "Supervisory findings in AML or cyber governance can restrict licensing, banking relationships and growth.",
+          "A privacy statute plus an observed credential-class file is correlated risk: unauthorised access can become a notifiable incident.",
         recommendation:
-          "Confirm licence perimeter, CDD/AML programme ownership, and cyber incident response evidence.",
+          "Treat this as a security and privacy event. Remove the file, rotate credentials, and record the incident path.",
         owner_role: "Compliance",
         evidence: [
           {
             source_type: "regulation",
-            source_reference: "KE-AML / KE-CBK-CYBER",
-            content: "Inferred from Kenya + financial/fintech industry profile.",
-            confidence: 74,
+            source_reference: assessment.code,
+            content: `${assessment.name} mapped. Observable coverage ${assessment.coverage}%. Public secret-class file observed.`,
+            confidence: 84,
             trust_status: "inferred",
           },
         ],
         action: {
-          title: "Document AML programme and cyber governance evidence",
+          title: `Open a privacy/security incident path for ${assessment.code}`,
           owner_role: "Compliance",
+          priority: "critical",
+        },
+      });
+    }
+
+    if (unknown.length >= 2) {
+      risks.push({
+        fingerprint: `reg:missing-evidence:${assessment.code}`,
+        title: `Missing evidence for ${assessment.name}`,
+        description: `${unknown.length} required artefacts were not observed and cannot be inferred from this scan.`,
+        category: "regulatory",
+        severity: assessment.category === "aml" ? "high" : "medium",
+        likelihood: 70,
+        impact: assessment.category === "aml" ? 80 : 65,
+        confidence: 70,
+        why_it_matters: assessment.impact,
+        recommendation:
+          "Collect the missing artefacts. VERIQ marks these as UNKNOWN until evidence exists — it will not invent compliance.",
+        owner_role: "Compliance",
+        evidence: [
+          {
+            source_type: "regulation",
+            source_reference: assessment.code,
+            content: `Unknown: ${unknown.map((item) => item.label).join("; ")}`,
+            confidence: 70,
+            trust_status: "unknown",
+          },
+        ],
+        action: {
+          title: `Collect evidence pack for ${assessment.code}`,
+          owner_role: "Compliance",
+          priority: assessment.category === "aml" ? "high" : "medium",
+        },
+      });
+    } else if (assessment.coverage < 50 && gaps.length) {
+      risks.push({
+        fingerprint: `reg:weak-safeguards:${assessment.code}`,
+        title: `Weak observed safeguards for ${assessment.code}`,
+        description: `Observable coverage is ${assessment.coverage}%. Gaps: ${gaps.map((item) => item.label).join(", ")}.`,
+        category: "regulatory",
+        severity: "medium",
+        likelihood: 60,
+        impact: 65,
+        confidence: 78,
+        why_it_matters: assessment.impact,
+        recommendation: "Close the observed technical gaps, then attach the attested artefacts.",
+        owner_role: "Compliance",
+        evidence: [
+          {
+            source_type: "regulation",
+            source_reference: assessment.code,
+            content: `Coverage ${assessment.coverage}% of observable controls.`,
+            confidence: 78,
+            trust_status: "observed",
+          },
+        ],
+      });
+    }
+  }
+
+  if (input.vendors) {
+    const map = input.vendors;
+    const payments = map.vendors.filter((item) => item.category === "payments");
+    const trackers = map.vendors.filter(
+      (item) => item.category === "analytics" || item.category === "ads",
+    );
+    const hosting = map.vendors.filter((item) => item.category === "hosting");
+
+    if (map.vendors.length === 0) {
+      risks.push({
+        fingerprint: "vendor:unknown-surface",
+        title: "Third-party surface is unknown",
+        description:
+          "No vendors were observed on the public website or in scanned package manifests, and none have been declared.",
+        category: "vendor",
+        severity: "medium",
+        likelihood: 55,
+        impact: 55,
+        confidence: 70,
+        why_it_matters:
+          "Most companies depend on processors they have not listed. Until a register exists, vendor concentration, breach notification and substitution stay UNKNOWN.",
+        recommendation:
+          "Declare critical vendors (hosting, payments, identity) and rescan the public site.",
+        owner_role: "Procurement",
+        evidence: [
+          {
+            source_type: "vendor",
+            content: "No observed or declared vendors in this scan",
+            confidence: 70,
+            trust_status: "unknown",
+          },
+        ],
+        action: {
+          title: "Start a critical vendor register",
+          owner_role: "Procurement",
+          priority: "medium",
+        },
+      });
+    }
+
+    if (map.criticalCount >= 3) {
+      risks.push({
+        fingerprint: "vendor:concentration",
+        title: "High vendor concentration on critical services",
+        description: `${map.criticalCount} high or critical vendors sit on hosting, payments or identity paths. Substitution is not evidenced.`,
+        category: "vendor",
+        severity: "high",
+        likelihood: 65,
+        impact: 80,
+        confidence: 78,
+        why_it_matters:
+          "A single vendor incident can stop operations when several critical services have no attested replacement.",
+        recommendation:
+          "Name an owner, record DPAs, and document a replacement for each critical vendor.",
+        owner_role: "Procurement",
+        evidence: [
+          {
+            source_type: "vendor",
+            content: `Critical/high vendors: ${map.vendors
+              .filter((item) => item.criticality === "critical" || item.criticality === "high")
+              .map((item) => item.name)
+              .join(", ")}`,
+            confidence: 78,
+            trust_status: "inferred",
+          },
+        ],
+        action: {
+          title: "Document replacements for critical vendors",
+          owner_role: "Procurement",
           priority: "high",
+        },
+      });
+    }
+
+    for (const vendor of payments) {
+      risks.push({
+        fingerprint: `vendor:payments:${vendor.id}`,
+        title: `${vendor.name} processes payments`,
+        description: `${vendor.name} was observed as a payment processor. Customer financial data is in scope; a DPA and incident-notification path remain UNKNOWN.`,
+        category: "vendor",
+        severity: "high",
+        likelihood: 70,
+        impact: 85,
+        confidence: 86,
+        why_it_matters:
+          "A payment-vendor incident is both a customer-trust and regulatory event. VERIQ will not invent a contract that was not attested.",
+        recommendation: `Confirm the ${vendor.name} DPA, data residency, and who is notified if they are breached.`,
+        owner_role: "Procurement",
+        evidence: [
+          {
+            source_type: "vendor",
+            source_reference: vendor.id,
+            content: `${vendor.name} sources: ${vendor.sources.map((item) => item.reference).join(", ")}`,
+            confidence: 86,
+            trust_status: vendor.trustStatus,
+          },
+        ],
+        action: {
+          title: `File DPA and incident clause for ${vendor.name}`,
+          owner_role: "Legal",
+          priority: "high",
+        },
+      });
+    }
+
+    if (trackers.length >= 2) {
+      risks.push({
+        fingerprint: "vendor:trackers",
+        title: "Multiple trackers on the public site",
+        description: `${trackers.length} analytics or advertising vendors were observed: ${trackers.map((item) => item.name).join(", ")}.`,
+        category: "vendor",
+        severity: "medium",
+        likelihood: 70,
+        impact: 60,
+        confidence: 88,
+        why_it_matters:
+          "Trackers are data processors. Under privacy statutes they need a lawful basis and, often, a DPA — neither of which this scan can observe.",
+        recommendation:
+          "Minimise trackers, disclose them, and attach processing records for each remaining vendor.",
+        owner_role: "Compliance",
+        evidence: [
+          {
+            source_type: "vendor",
+            content: trackers.map((item) => item.name).join(", "),
+            confidence: 88,
+            trust_status: "observed",
+          },
+        ],
+        action: {
+          title: "Review tracker inventory against the privacy notice",
+          owner_role: "Compliance",
+          priority: "medium",
+        },
+      });
+    }
+
+    if (hosting.length === 1) {
+      const vendor = hosting[0]!;
+      risks.push({
+        fingerprint: `vendor:single-host:${vendor.id}`,
+        title: `Single hosting vendor: ${vendor.name}`,
+        description: `${vendor.name} is the only observed production host. There is no attested alternate.`,
+        category: "vendor",
+        severity: "medium",
+        likelihood: 50,
+        impact: 75,
+        confidence: 80,
+        why_it_matters:
+          "Hosting concentration is an operational-risk question for the board: what happens if this vendor is unavailable?",
+        recommendation:
+          "Document recovery assumptions and whether a second region or provider exists.",
+        owner_role: "Engineering",
+        evidence: [
+          {
+            source_type: "vendor",
+            source_reference: vendor.id,
+            content: `${vendor.name} observed via ${vendor.sources.map((item) => item.reference).join(", ")}`,
+            confidence: 80,
+            trust_status: "inferred",
+          },
+        ],
+      });
+    }
+  }
+
+  if (input.finance) {
+    const finance = input.finance;
+    const financialIndustry = ["fintech", "financial_services", "insurance"].includes(
+      input.industry,
+    );
+
+    if (
+      finance.attested.customerConcentration === "unknown" &&
+      finance.attested.liquidity === "unknown" &&
+      finance.attested.revenueMix === "unknown"
+    ) {
+      risks.push({
+        fingerprint: "finance:unattested",
+        title: "Financial model is unattested",
+        description:
+          "Revenue mix, customer concentration and liquidity have not been attested. Amounts are not estimated.",
+        category: "financial",
+        severity: "medium",
+        likelihood: 55,
+        impact: 60,
+        confidence: 72,
+        why_it_matters:
+          "Boards ask about concentration and runway. Until those bands are attested, the financial dimension of the VERIQ score stays weakly evidenced.",
+        recommendation:
+          "Attest qualitative bands (not ledger amounts) for customer concentration, liquidity and revenue mix, then rescan.",
+        owner_role: "Finance",
+        evidence: [
+          {
+            source_type: "finance",
+            content: finance.summary,
+            confidence: 72,
+            trust_status: "unknown",
+          },
+        ],
+        action: {
+          title: "Attest financial concentration bands",
+          owner_role: "Finance",
+          priority: "medium",
+        },
+      });
+    }
+
+    if (finance.paymentRails.length === 1) {
+      risks.push({
+        fingerprint: "finance:single-rail",
+        title: `Single payment rail: ${finance.paymentRails[0]}`,
+        description: `${finance.paymentRails[0]} is the only observed payment processor. Share of transactions is UNKNOWN.`,
+        category: "financial",
+        severity:
+          finance.attested.customerConcentration === "high" ||
+          finance.attested.liquidity === "tight"
+            ? "critical"
+            : "high",
+        likelihood: 70,
+        impact: 85,
+        confidence: 82,
+        why_it_matters:
+          "Payment concentration is a business-continuity and liquidity question. A 48-hour rail outage sits on the revenue path.",
+        recommendation:
+          "Attest a secondary rail, or document why one processor is acceptable, then simulate a 48-hour outage.",
+        owner_role: "Finance",
+        evidence: [
+          {
+            source_type: "finance",
+            content: `Observed rail: ${finance.paymentRails[0]}. Customer concentration: ${finance.attested.customerConcentration}. Liquidity: ${finance.attested.liquidity}.`,
+            confidence: 82,
+            trust_status: "inferred",
+          },
+        ],
+        action: {
+          title: "Establish or attest a secondary payment rail",
+          owner_role: "Finance",
+          priority: "high",
+        },
+      });
+    } else if (financialIndustry && finance.paymentRails.length === 0) {
+      risks.push({
+        fingerprint: "finance:rail-unknown",
+        title: "Payment dependency is unknown",
+        description: `Industry is ${input.industry}, but no payment processor was observed on the public site or in scanned packages.`,
+        category: "financial",
+        severity: "high",
+        likelihood: 65,
+        impact: 75,
+        confidence: 70,
+        why_it_matters:
+          "A financial-industry company almost always has a transaction rail. If VERIQ cannot see it, the revenue path is a blind spot.",
+        recommendation:
+          "Declare the payment processor as a vendor, or expose it on the public site and rescan.",
+        owner_role: "Finance",
+        evidence: [
+          {
+            source_type: "finance",
+            content: "No payments-category vendor observed or declared",
+            confidence: 70,
+            trust_status: "unknown",
+          },
+        ],
+        action: {
+          title: "Declare the primary payment processor",
+          owner_role: "Finance",
+          priority: "high",
+        },
+      });
+    }
+
+    if (
+      finance.attested.customerConcentration === "high" &&
+      finance.paymentConcentration === "high"
+    ) {
+      risks.push({
+        fingerprint: "finance:customer-x-payment",
+        title: "Customer concentration on a single payment path",
+        description:
+          "High attested customer concentration plus one observed payment rail. A rail failure and a key-customer loss would stack.",
+        category: "financial",
+        severity: "critical",
+        likelihood: 60,
+        impact: 90,
+        confidence: 76,
+        why_it_matters:
+          "This is correlated business risk, not two separate findings. Liquidity impact remains UNKNOWN as an amount.",
+        recommendation:
+          "Diversify rails and customers, and attest a liquidity band so the board can see runway qualitatively.",
+        owner_role: "Executive",
+        evidence: [
+          {
+            source_type: "finance",
+            content: finance.summary,
+            confidence: 76,
+            trust_status: "inferred",
+          },
+        ],
+        action: {
+          title: "Brief the board on stacked concentration",
+          owner_role: "Executive",
+          priority: "critical",
+        },
+      });
+    }
+
+    if (finance.attested.singleSite === "yes") {
+      risks.push({
+        fingerprint: "finance:single-site",
+        title: "Single-site operational concentration",
+        description:
+          "The company attested that one physical location supports critical operations.",
+        category: "financial",
+        severity: "medium",
+        likelihood: 50,
+        impact: 70,
+        confidence: 80,
+        why_it_matters:
+          "A site outage becomes a revenue and continuity event when there is no second location.",
+        recommendation:
+          "Document recovery assumptions for the primary site, including remote operations.",
+        owner_role: "Operations",
+        evidence: [
+          {
+            source_type: "finance",
+            content: "singleSite attested as yes",
+            confidence: 80,
+            trust_status: "observed",
+          },
+        ],
+      });
+    }
+
+    if (finance.attested.keyPerson === "yes") {
+      risks.push({
+        fingerprint: "finance:key-person",
+        title: "Key-person dependency attested",
+        description:
+          "The company attested that production or financial control is concentrated in a small number of people.",
+        category: "financial",
+        severity: "medium",
+        likelihood: 45,
+        impact: 75,
+        confidence: 78,
+        why_it_matters:
+          "Key-person risk is a going-concern question for boards and lenders. Privileges were not observed in this scan.",
+        recommendation:
+          "Split production privileges, document deputies, and attest MFA on those accounts.",
+        owner_role: "Executive",
+        evidence: [
+          {
+            source_type: "finance",
+            content: "keyPerson attested as yes",
+            confidence: 78,
+            trust_status: "observed",
+          },
+        ],
+      });
+    }
+  }
+
+  if (input.ai) {
+    const ai = input.ai;
+    if (ai.systems.length) {
+      if (ai.attested.inventory !== "yes" || ai.attested.humanOversight === "unknown") {
+        risks.push({
+          fingerprint: "ai:governance-gap",
+          title: "Observed AI without attested governance",
+          description: `${ai.systems.map((item) => item.name).join(", ")} ${ai.systems.length === 1 ? "was" : "were"} mapped. Human oversight, logging and training-data use remain UNKNOWN.`,
+          category: "ai",
+          severity: ai.attested.customerFacing === "yes" ? "high" : "medium",
+          likelihood: 65,
+          impact: 70,
+          confidence: 78,
+          why_it_matters:
+            "An AI API on the production or customer path is a data-processing system. Privacy statutes still apply to prompts and outputs.",
+          recommendation:
+            "Attest inventory, human oversight and whether customer data is sent to the model. Record a decision log.",
+          owner_role: "Compliance",
+          evidence: [
+            {
+              source_type: "ai",
+              content: ai.systems
+                .map(
+                  (item) =>
+                    `${item.name} (${item.origin}): ${item.sources.map((row) => row.reference).join(", ")}`,
+                )
+                .join("; "),
+              confidence: 78,
+              trust_status: "observed",
+            },
+          ],
+          action: {
+            title: "Attest AI governance for observed systems",
+            owner_role: "Compliance",
+            priority: "medium",
+          },
+        });
+      }
+
+      if (ai.attested.customerFacing === "yes" && ai.attested.humanOversight !== "yes") {
+        risks.push({
+          fingerprint: "ai:customer-no-oversight",
+          title: "Customer-facing AI without attested human oversight",
+          description:
+            "The company attested that AI faces customers, but not that a human can override or review decisions.",
+          category: "ai",
+          severity: "high",
+          likelihood: 60,
+          impact: 80,
+          confidence: 80,
+          why_it_matters:
+            "Customer-facing models create consumer, privacy and conduct risk when outputs are not reviewable.",
+          recommendation:
+            "Put a human in the loop for material decisions, and log those reviews.",
+          owner_role: "Compliance",
+          evidence: [
+            {
+              source_type: "ai",
+              content: "customerFacing=yes; humanOversight not attested as yes",
+              confidence: 80,
+              trust_status: "observed",
+            },
+          ],
+        });
+      }
+
+      if (ai.attested.trainsOnCustomerData === "yes") {
+        const privacy = input.assessments.find((item) => item.category === "privacy");
+        risks.push({
+          fingerprint: "ai:training-data",
+          title: "Customer data used to train or improve a model",
+          description: privacy
+            ? `Training on customer data was attested. ${privacy.code} still applies to that processing.`
+            : "Training on customer data was attested. Lawful basis and retention for that processing stay UNKNOWN.",
+          category: "ai",
+          severity: "high",
+          likelihood: 55,
+          impact: 85,
+          confidence: 76,
+          why_it_matters:
+            "Once customer data enters a training set, deletion and purpose limitation become hard. This is correlated privacy risk.",
+          recommendation:
+            "Confirm contractual opt-out of training, minimise prompts, and record the lawful basis.",
+          owner_role: "Legal",
+          evidence: [
+            {
+              source_type: "ai",
+              source_reference: privacy?.code,
+              content: "trainsOnCustomerData attested as yes",
+              confidence: 76,
+              trust_status: "inferred",
+            },
+          ],
+          action: {
+            title: "Confirm model-training clauses and lawful basis",
+            owner_role: "Legal",
+            priority: "high",
+          },
+        });
+      }
+    }
+  }
+
+  if (input.world) {
+    const material = input.world.events
+      .filter(
+        (item) =>
+          item.relevance === "material" &&
+          [
+            "hyperscaler-concentration",
+            "payment-rail-disruption",
+            "identity-provider",
+            "foundation-model-api",
+            "tracker-privacy",
+            "oss-supply-chain",
+          ].includes(item.id),
+      )
+      .slice(0, 3);
+    for (const event of material) {
+      risks.push({
+        fingerprint: `world:${event.id}`,
+        title: event.title,
+        description: `${event.summary} ${event.reason}`,
+        category: event.kind === "cyber" ? "cybersecurity" : "operational",
+        severity: event.kind === "vendor" ? "high" : "medium",
+        likelihood: 50,
+        impact: event.kind === "vendor" ? 75 : 60,
+        confidence: 72,
+        why_it_matters:
+          "An external condition on the company model is correlated risk. VERIQ will not invent that an incident is happening now.",
+        recommendation:
+          "Confirm substitution, notification and whether this condition is actually in the operating perimeter.",
+        owner_role: "Executive",
+        evidence: [
+          {
+            source_type: "world",
+            source_reference: event.id,
+            content: event.reason,
+            confidence: 72,
+            trust_status: event.trustStatus,
+          },
+        ],
+        action: {
+          title: `Review external condition: ${event.title}`,
+          owner_role: "Executive",
+          priority: event.kind === "vendor" ? "high" : "medium",
         },
       });
     }
@@ -647,7 +1452,10 @@ export function buildRisks(input: {
     });
   }
 
-  return risks;
+  return risks.map((risk) => ({
+    ...risk,
+    certainty: certaintyFor(risk),
+  }));
 }
 
 export function scoreFromRisks(risks: DraftRisk[]) {

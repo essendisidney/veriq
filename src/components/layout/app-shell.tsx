@@ -6,12 +6,22 @@ import { useState } from "react";
 import {
   Activity,
   BookOpen,
+  Boxes,
+  FlaskConical,
+  Banknote,
+  Share2,
   GitBranch,
   LayoutDashboard,
   ListChecks,
   Menu,
   Radar,
   ScanSearch,
+  Globe,
+  GitCompareArrows,
+  Sparkles,
+  FileText,
+  KeyRound,
+  Plug,
   Settings,
   ShieldAlert,
   Server,
@@ -19,14 +29,25 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useWorkspace } from "@/components/workspace/workspace-provider";
+import { NotificationBell } from "@/components/notification-bell";
 
 const navItems = [
   { label: "Radar", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Risk Graph", href: "/graph", icon: Share2 },
+  { label: "Scenarios", href: "/scenarios", icon: FlaskConical },
+  { label: "Reports", href: "/reports", icon: FileText },
+  { label: "Changes", href: "/changes", icon: GitCompareArrows },
+  { label: "External", href: "/world", icon: Globe },
   { label: "Findings", href: "/findings", icon: ShieldAlert },
   { label: "Actions", href: "/actions", icon: ListChecks },
   { label: "Technology", href: "/technology", icon: Server },
   { label: "Repositories", href: "/repositories", icon: GitBranch },
   { label: "Regulations", href: "/regulations", icon: BookOpen },
+  { label: "Vendors", href: "/vendors", icon: Boxes },
+  { label: "Finance", href: "/finance", icon: Banknote },
+  { label: "AI", href: "/ai", icon: Sparkles },
+  { label: "API", href: "/developers", icon: KeyRound },
+  { label: "Integrations", href: "/integrations", icon: Plug },
   { label: "Scans", href: "/scans", icon: Activity },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
@@ -116,12 +137,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-[var(--bg)]">
-      <aside className="hidden w-60 shrink-0 border-r border-[var(--border)] bg-[var(--surface)] md:block">
+      <aside className="hidden w-60 shrink-0 border-r border-[var(--border)] bg-[var(--surface)] print:hidden md:block">
         <SidebarContent />
       </aside>
 
       {mobileOpen && (
-        <div className="fixed inset-0 z-50 md:hidden">
+        <div className="fixed inset-0 z-50 print:hidden md:hidden">
           <button
             type="button"
             className="absolute inset-0 bg-black/50"
@@ -143,7 +164,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b border-[var(--border)] bg-[var(--bg)]/90 px-4 backdrop-blur md:px-6">
+        <header className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b border-[var(--border)] bg-[var(--bg)]/90 px-4 backdrop-blur print:hidden md:px-6">
           <button
             type="button"
             className="rounded-lg p-2 text-[var(--muted)] md:hidden"
@@ -158,7 +179,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               {currentOrg?.name ?? "Workspace"}
             </p>
           </div>
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-2">
+            <NotificationBell />
             <Link
               href="/scans"
               className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--elevated)] px-3 py-1.5 text-sm text-[var(--ink)] hover:border-[var(--accent)]"
