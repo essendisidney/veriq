@@ -2,6 +2,7 @@ import { SHARE_PREFIX } from "@/lib/api/keys";
 import { loadCompanySnapshot } from "@/lib/api/serve";
 import { reportFromSnapshot } from "@/lib/reports/from-snapshot";
 import { InstitutionalReportView } from "@/components/institutional-report";
+import { formatDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -49,9 +50,17 @@ export default async function PublicSharePage({
   return (
     <div>
       <p className="mb-6 text-xs text-[var(--muted)] print:hidden">
-        Read-only snapshot for {report.audience.toLowerCase()}. Print to PDF if you need a file.
-        This is intelligence, not a legal, audit, valuation or credit opinion.
+        Read-only snapshot for {report.audience.toLowerCase()}
+        {report.scannedAt ? ` · as of ${formatDate(report.scannedAt)}` : ""}
+        . Print to PDF if you need a file. This is intelligence, not a legal, audit, valuation or
+        credit opinion.
       </p>
+      {report.staleDays != null && (
+        <p className="mb-6 rounded-2xl border border-[var(--high)] bg-[rgba(255,138,76,0.08)] px-4 py-3 text-sm text-[var(--ink)] print:hidden">
+          This pack is {report.staleDays} day{report.staleDays === 1 ? "" : "s"} old. Ask the company
+          to rescan. A share link always shows the latest completed scan.
+        </p>
+      )}
       <InstitutionalReportView report={report} publicView />
     </div>
   );

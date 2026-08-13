@@ -35,5 +35,14 @@ export function institutionalCsv(report: InstitutionalReport) {
     [],
     ["Unknown"],
     ...report.unknowns.map((item) => [item]),
+    [],
+    ["Action", "Owner", "Priority", "Deadline", "Overdue"],
+    ...report.actions.map((item) => [
+      item.title,
+      item.owner,
+      item.priority,
+      item.deadline ?? "",
+      item.overdue ? "yes" : "no",
+    ]),
   ]);
 }

@@ -37,3 +37,16 @@ export function isOverdue(deadline: string | null, status: string) {
   }
   return new Date(deadline).getTime() < Date.now();
 }
+
+export function daysSince(iso: string | null | undefined) {
+  if (!iso) return null;
+  const then = Date.parse(iso);
+  if (!Number.isFinite(then)) return null;
+  return Math.max(0, Math.floor((Date.now() - then) / 86_400_000));
+}
+
+export function staleDays(iso: string | null | undefined, threshold = 7) {
+  const days = daysSince(iso);
+  if (days == null || days < threshold) return null;
+  return days;
+}

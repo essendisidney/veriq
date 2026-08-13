@@ -43,9 +43,19 @@ export type ApiRiskPayload = {
   disclaimer?: string;
 };
 
+export type ApiAction = {
+  id: string;
+  title: string;
+  owner_role?: string | null;
+  priority: string;
+  deadline?: string | null;
+  status?: string;
+};
+
 export type ApiSnapshotPayload = ApiRiskPayload & {
   pack?: string;
   summary?: Record<string, unknown>;
+  actions?: ApiAction[];
 };
 
 const corsHeaders = {

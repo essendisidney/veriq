@@ -1,4 +1,4 @@
-import type { Risk, Score } from "@/lib/database.types";
+import type { Action, Risk, Score } from "@/lib/database.types";
 import { simulateScenarios } from "@/lib/scenarios/simulate";
 import { assessFinance, DEFAULT_ATTESTED } from "@/lib/finance/assess";
 import type { AiAssessment } from "@/lib/ai/assess";
@@ -43,7 +43,7 @@ export function bundleFromSnapshot(payload: ApiSnapshotPayload): ReportBundle | 
     score: asScore(payload, org.id),
     previous: null,
     risks: (payload.findings ?? []).map((row) => asRisk(row, org.id)),
-    actions: [],
+    actions: (payload.actions ?? []).map((row) => asAction(row, org.id)),
     previousRiskCount: latest.risks ?? null,
     regulatory,
     vendors,
@@ -120,6 +120,24 @@ function asRisk(
     recommendation: row.recommendation ?? null,
     owner_role: row.owner_role ?? null,
     fingerprint: row.fingerprint ?? row.id,
+    created_at: "",
+    updated_at: "",
+  };
+}
+
+function asAction(
+  row: NonNullable<ApiSnapshotPayload["actions"]>[number],
+  orgId: string,
+): Action {
+  return {
+    id: row.id,
+    organization_id: orgId,
+    risk_id: null,
+    title: row.title,
+    owner_role: row.owner_role ?? null,
+    priority: (row.priority as Action["priority"]) ?? "medium",
+    deadline: row.deadline ?? null,
+    status: (row.status as Action["status"]) ?? "open",
     created_at: "",
     updated_at: "",
   };

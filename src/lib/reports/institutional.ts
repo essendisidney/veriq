@@ -9,6 +9,7 @@ import type { RiskGraph } from "@/lib/graph/build";
 import type { ScenarioResult } from "@/lib/scenarios/simulate";
 import type { Exposure } from "@/lib/scan/exposure";
 import { SCORE_DIMENSIONS, industryLabel, countryLabel } from "@/lib/utils";
+import { isOverdue, staleDays } from "@/lib/risk/certainty";
 
 export type ReportBundle = {
   score: Score | null;
@@ -52,11 +53,22 @@ export type ReportQuestion = {
   href?: string;
 };
 
+export type ReportAction = {
+  id: string;
+  title: string;
+  owner: string;
+  priority: string;
+  deadline: string | null;
+  overdue: boolean;
+};
+
 export type InstitutionalReport = {
   kind: "diligence" | "credit";
   title: string;
   audience: string;
   generatedAt: string;
+  scannedAt: string | null;
+  staleDays: number | null;
   company: { name: string; industry: string; country: string };
   healthScore: number;
   previous: number | null;
@@ -66,6 +78,8 @@ export type InstitutionalReport = {
   flags: ReportFlag[];
   unknowns: string[];
   questions: ReportQuestion[];
+  actions: ReportAction[];
+  overdueCount: number;
   regulatory: { code: string; name: string; coverage: number; unknown: number }[];
   vendors: { id: string; name: string; risk: string; criticality: string }[];
   finance: { posture: number | null; summary: string; unknowns: string[] };
@@ -149,6 +163,16 @@ function buildInstitutional(
   }));
   const delta =
     bundle.previous != null ? bundle.score.overall - bundle.previous.overall : null;
+  const scannedAt = bundle.score.created_at;
+  const reportActions = bundle.actions.slice(0, 8).map((item) => ({
+    id: item.id,
+    title: item.title,
+    owner: item.owner_role ?? "Unassigned",
+    priority: item.priority,
+    deadline: item.deadline,
+    overdue: isOverdue(item.deadline, item.status),
+  }));
+  const overdueCount = reportActions.filter((item) => item.overdue).length;
 
   const parts: string[] = [];
   if (kind === "diligence") {
@@ -177,6 +201,11 @@ function buildInstitutional(
   if (bundle.ai?.systems.length && bundle.ai.attested.humanOversight !== "yes") {
     parts.push("AI systems are mapped; human oversight is not attested.");
   }
+  if (overdueCount) {
+    parts.push(
+      `${overdueCount} recommended action${overdueCount === 1 ? "" : "s"} ${overdueCount === 1 ? "is" : "are"} past SLA.`,
+    );
+  }
   if (bundle.world?.material) {
     parts.push(
       `${bundle.world.material} catalogued external condition${bundle.world.material === 1 ? "" : "s"} matter to this company. No incident is asserted.`,
@@ -191,6 +220,8 @@ function buildInstitutional(
         ? "Investors, acquirers and diligence teams"
         : "Banks, lenders and credit committees",
     generatedAt: new Date().toISOString(),
+    scannedAt,
+    staleDays: staleDays(scannedAt),
     company: {
       name: org.name,
       industry: org.industry,
@@ -204,6 +235,8 @@ function buildInstitutional(
     flags: flags.slice(0, 8),
     unknowns,
     questions: questions.slice(0, 6),
+    actions: reportActions,
+    overdueCount,
     regulatory,
     vendors,
     finance: {
@@ -316,6 +349,16 @@ function collectFlags(bundle: ReportBundle, kind: "diligence" | "credit"): Repor
       title: risk.title,
       detail: risk.why_it_matters ?? risk.description,
       href: `/findings/${risk.id}`,
+    });
+  }
+  const overdue = bundle.actions.filter((item) => isOverdue(item.deadline, item.status));
+  if (overdue.length) {
+    flags.push({
+      id: "flag:overdue-actions",
+      severity: overdue.some((item) => item.priority === "critical") ? "critical" : "high",
+      title: `${overdue.length} recommended action${overdue.length === 1 ? "" : "s"} past SLA`,
+      detail: "Management has not closed these items. VERIQ does not change production systems.",
+      href: "/actions",
     });
   }
   if (bundle.finance?.paymentRails.length === 1) {
@@ -443,6 +486,17 @@ function collectQuestions(
       question: "Are there open critical cyber findings on customer channels?",
       why: "A notifiable incident can become a going-concern event. This is not a pentest.",
       href: "/findings",
+    });
+  }
+  const overdue = bundle.actions.filter((item) => isOverdue(item.deadline, item.status));
+  if (overdue.length) {
+    questions.push({
+      question: `Who owns the ${overdue.length} action${overdue.length === 1 ? "" : "s"} past SLA, and when will they close?`,
+      why:
+        kind === "credit"
+          ? "An unpaid operational SLA is operating risk, not a covenant breach or a credit score."
+          : "Diligence should test whether management closes material items. VERIQ does not change production systems.",
+      href: "/actions",
     });
   }
   const payment = bundle.finance?.paymentVendors[0];

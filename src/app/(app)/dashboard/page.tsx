@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useWorkspace } from "@/components/workspace/workspace-provider";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
-import { SeverityBadge } from "@/components/ui/badge";
+import { SeverityBadge, Badge } from "@/components/ui/badge";
 import { ScanButton } from "@/components/scan-button";
 import {
   SCORE_DIMENSIONS,
@@ -27,6 +27,7 @@ import type { AiAssessment } from "@/lib/ai/assess";
 import type { ChangeSet } from "@/lib/changes/diff";
 import type { WorldAssessment } from "@/lib/world/assess";
 import { isScanDue, parseCadence, type ScanCadence } from "@/lib/webhooks/cadence";
+import { isOverdue } from "@/lib/risk/certainty";
 
 export default function DashboardPage() {
   const { currentOrg } = useWorkspace();
@@ -162,6 +163,7 @@ export default function DashboardPage() {
     vendors,
     assessments: regulatory,
   }).slice(0, 3);
+  const overdueActions = actions.filter((item) => isOverdue(item.deadline, item.status));
 
   return (
     <div>
@@ -181,6 +183,26 @@ export default function DashboardPage() {
             </p>
           </div>
           <ScanButton organizationId={currentOrg.id} label="Run due scan" />
+        </div>
+      )}
+
+      {overdueActions.length > 0 && (
+        <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-[var(--critical)] bg-[rgba(255,77,109,0.08)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-medium text-[var(--ink)]">
+              {overdueActions.length} action{overdueActions.length === 1 ? "" : "s"} past SLA
+            </p>
+            <p className="mt-1 text-xs text-[var(--muted)]">
+              Critical items have a 24-hour deadline. High items have 7 days. VERIQ does not change
+              production systems.
+            </p>
+          </div>
+          <Link
+            href="/actions"
+            className="text-sm text-[var(--accent)] hover:underline"
+          >
+            Open actions
+          </Link>
         </div>
       )}
 
@@ -770,7 +792,13 @@ export default function DashboardPage() {
                       <p className="text-sm text-[var(--ink)]">{action.title}</p>
                       <p className="mt-1 text-xs text-[var(--muted)]">
                         {action.owner_role ?? "Unassigned"} · {action.priority}
+                        {action.deadline ? ` · due ${formatDateTime(action.deadline)}` : ""}
                       </p>
+                      {isOverdue(action.deadline, action.status) && (
+                        <Badge variant="danger" className="mt-2">
+                          Overdue
+                        </Badge>
+                      )}
                     </li>
                   ))}
                 </ul>

@@ -55,8 +55,16 @@ export function InstitutionalReportView({
         </p>
         <p className="mt-1 text-sm">
           {report.kind === "diligence" ? "Company Health Score" : "Business Risk Profile"}{" "}
-          {report.healthScore}/100 · Generated {formatDateTime(report.generatedAt)}
+          {report.healthScore}/100
+          {report.scannedAt
+            ? ` · As of ${formatDateTime(report.scannedAt)}`
+            : ` · Generated ${formatDateTime(report.generatedAt)}`}
         </p>
+        {report.overdueCount > 0 && (
+          <p className="mt-2 text-sm">
+            {report.overdueCount} recommended action{report.overdueCount === 1 ? "" : "s"} past SLA
+          </p>
+        )}
         <p className="mt-2 text-xs text-[var(--muted)]">{report.audience}</p>
       </header>
 
@@ -74,6 +82,12 @@ export function InstitutionalReportView({
           </p>
         )}
         <p className="mt-4 text-sm leading-7 text-[var(--ink)]">{report.summary}</p>
+        {report.staleDays != null && (
+          <p className="mt-3 text-sm text-[var(--high)]">
+            This snapshot is {report.staleDays} day{report.staleDays === 1 ? "" : "s"} old. Ask the
+            company to rescan. VERIQ will not invent a newer score.
+          </p>
+        )}
       </section>
 
       <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
@@ -138,6 +152,37 @@ export function InstitutionalReportView({
             </li>
           ))}
         </ul>
+      </section>
+
+      <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
+        <h2 className="font-display text-2xl">Management actions</h2>
+        {report.actions.length === 0 ? (
+          <p className="mt-2 text-sm text-[var(--muted)]">
+            No open recommended actions on this snapshot.
+          </p>
+        ) : (
+          <ul className="mt-4 space-y-3">
+            {report.actions.map((item) => (
+              <li
+                key={item.id}
+                className="rounded-xl border border-[var(--border)] bg-[var(--elevated)] px-4 py-3"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-sm text-[var(--ink)]">{item.title}</p>
+                  {item.overdue ? (
+                    <Badge variant="danger">Overdue</Badge>
+                  ) : (
+                    <Badge variant="muted">{item.priority}</Badge>
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-[var(--muted)]">
+                  {item.owner}
+                  {item.deadline ? ` · due ${formatDateTime(item.deadline)}` : ""}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
