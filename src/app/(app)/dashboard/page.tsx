@@ -444,7 +444,7 @@ export default function DashboardPage() {
 
             <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
               <div className="mb-4 flex items-center justify-between">
-                <h2 className="font-display text-2xl">Risk graph</h2>
+                <h2 className="font-display text-2xl">Why this is material</h2>
                 <Link
                   href="/graph"
                   className="text-sm text-[var(--accent)] hover:underline"
@@ -496,8 +496,9 @@ export default function DashboardPage() {
                     </ul>
                   ) : (
                     <p className="text-sm text-[var(--muted)]">
-                      {graph.nodes.length} entities connected. Correlated paths appear when
-                      findings overlap.
+                      Individual findings are not enough. After a scan, VERIQ
+                      correlates secrets, vendors and statutes into paths the
+                      board can act on.
                     </p>
                   )}
                 </div>

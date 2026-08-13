@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useWorkspace } from "@/components/workspace/workspace-provider";
 import { PageHeader } from "@/components/ui/page-header";
@@ -9,6 +9,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { COUNTRIES, INDUSTRIES } from "@/lib/utils";
+
+const GITHUB_FLASH: Record<string, string> = {
+  connected: "GitHub connected. A scan ran with a short-lived token that was not stored.",
+  not_configured:
+    "GitHub OAuth is not configured on this deployment. Add GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET, or keep using a public username.",
+  missing_org: "Choose a company before connecting GitHub.",
+  forbidden: "You do not have access to connect GitHub for this company.",
+  invalid_state: "GitHub connect expired. Try again.",
+  exchange_failed: "GitHub refused the token exchange. Try again.",
+  identity_failed: "Could not read the GitHub account.",
+};
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -19,6 +30,11 @@ export default function SettingsPage() {
   const [industry, setIndustry] = useState(currentOrg?.industry ?? "technology");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const flash = new URLSearchParams(window.location.search).get("github");
+    if (flash && GITHUB_FLASH[flash]) setMessage(GITHUB_FLASH[flash]);
+  }, []);
 
   if (!currentOrg) return null;
 
@@ -73,6 +89,16 @@ export default function SettingsPage() {
             value={githubLogin}
             onChange={(e) => setGithubLogin(e.target.value)}
           />
+          <p className="mt-1 text-xs text-[var(--muted)]">
+            Public username still works. Connect GitHub to scan with a higher
+            rate limit. The token is used once and discarded.
+          </p>
+          <a
+            href={`/api/github/connect?org=${currentOrg.id}`}
+            className="mt-3 inline-flex h-10 items-center rounded-xl border border-[var(--border)] bg-[var(--elevated)] px-4 text-sm text-[var(--ink)] hover:border-[var(--accent)]"
+          >
+            Connect GitHub
+          </a>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>

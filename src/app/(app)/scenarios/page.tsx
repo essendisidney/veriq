@@ -52,7 +52,7 @@ export default function ScenariosPage() {
     <div>
       <PageHeader
         title="Scenarios"
-        description="What-if simulation on the risk graph. Impact is inferred. Financial figures stay UNKNOWN until attested."
+        description="Three scenarios always run: cloud outage, payment-rail failure, credential leak. Everything else is inferred from the graph. Financial figures stay UNKNOWN."
       />
       {!loaded ? (
         <p className="text-sm text-[var(--muted)]">Loading scenarios…</p>

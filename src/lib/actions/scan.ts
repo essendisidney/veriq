@@ -43,7 +43,10 @@ async function isolate<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
   }
 }
 
-export async function runOrganizationScan(organizationId: string) {
+export async function runOrganizationScan(
+  organizationId: string,
+  options?: { githubToken?: string },
+) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -148,7 +151,7 @@ export async function runOrganizationScan(organizationId: string) {
         ? isolate(() => scanWebsite(org.website!), null)
         : Promise.resolve(null),
       org.github_login
-        ? isolate(() => scanGithub(org.github_login!), null)
+        ? isolate(() => scanGithub(org.github_login!, options?.githubToken), null)
         : Promise.resolve(null),
       hostname
         ? isolate(() => scanExposure(hostname), null)

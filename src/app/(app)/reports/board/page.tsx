@@ -142,7 +142,7 @@ export default function BoardReportPage() {
     <div className="report-print">
       <PageHeader
         title="Board risk report"
-        description={`${industryLabel(currentOrg.industry)} · ${countryLabel(currentOrg.country)}`}
+        description={`${industryLabel(currentOrg.industry)} · ${countryLabel(currentOrg.country)} · Print to PDF and forward. Do not edit.`}
         actions={
           <div className="flex gap-2 print:hidden">
             <Button variant="secondary" onClick={downloadJson} disabled={!report}>
@@ -166,7 +166,21 @@ export default function BoardReportPage() {
         />
       ) : (
         <article className="space-y-6">
-          <p className="text-xs text-[var(--muted)]">
+          <header className="hidden print:block print:mb-8">
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--accent)]">
+              VERIQ Board Intelligence
+            </p>
+            <h1 className="mt-2 font-display text-4xl">{report.company.name}</h1>
+            <p className="mt-2 text-sm">
+              {industryLabel(report.company.industry)} · {countryLabel(report.company.country)}
+            </p>
+            <p className="mt-1 text-sm">
+              VERIQ Score {report.score.overall}/100 · Generated {formatDateTime(report.generatedAt)}
+            </p>
+            <p className="mt-4 text-sm leading-6">{report.summary}</p>
+          </header>
+
+          <p className="text-xs text-[var(--muted)] print:hidden">
             Generated {formatDateTime(report.generatedAt)} · VERIQ Score {report.score.overall}
             {report.score.delta != null
               ? ` · ${report.score.delta >= 0 ? "+" : ""}${report.score.delta} vs last scan`

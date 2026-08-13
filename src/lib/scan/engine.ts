@@ -211,14 +211,18 @@ export async function scanWebsite(website: string): Promise<WebsiteScan | null> 
   }
 }
 
-async function githubFetch(path: string, accept?: string) {
+async function githubFetch(
+  path: string,
+  opts?: { accept?: string; token?: string },
+) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10000);
   try {
     return await fetch(`https://api.github.com${path}`, {
       headers: {
         ...GITHUB_HEADERS,
-        ...(accept ? { accept } : {}),
+        ...(opts?.accept ? { accept: opts.accept } : {}),
+        ...(opts?.token ? { authorization: `Bearer ${opts.token}` } : {}),
       },
       signal: controller.signal,
       next: { revalidate: 0 },
@@ -230,18 +234,19 @@ async function githubFetch(path: string, accept?: string) {
   }
 }
 
-async function githubJson<T>(path: string): Promise<T | null> {
-  const response = await githubFetch(path);
+async function githubJson<T>(path: string, token?: string): Promise<T | null> {
+  const response = await githubFetch(path, { token });
   if (!response?.ok) return null;
   return (await response.json()) as T;
 }
 
 async function githubPackageNames(
   fullName: string,
+  token?: string,
 ): Promise<{ exists: boolean; names: string[] }> {
   const response = await githubFetch(
     `/repos/${fullName}/contents/package.json`,
-    "application/vnd.github.raw+json",
+    { accept: "application/vnd.github.raw+json", token },
   );
   if (!response?.ok) return { exists: false, names: [] };
   try {
@@ -261,10 +266,10 @@ async function githubPackageNames(
   }
 }
 
-async function githubExists(fullName: string, filePath: string) {
-  const response = await githubFetch(
-    `/repos/${fullName}/contents/${filePath}`,
-  );
+async function githubExists(fullName: string, filePath: string, token?: string) {
+  const response = await githubFetch(`/repos/${fullName}/contents/${filePath}`, {
+    token,
+  });
   return response?.status === 200;
 }
 
@@ -287,7 +292,10 @@ type GithubRepo = {
   license: { spdx_id: string } | null;
 };
 
-export async function scanGithub(login: string): Promise<GithubScan | null> {
+export async function scanGithub(
+  login: string,
+  token?: string,
+): Promise<GithubScan | null> {
   const handle = normalizeGithubLogin(login);
   if (!handle) {
     return {
@@ -300,7 +308,7 @@ export async function scanGithub(login: string): Promise<GithubScan | null> {
     };
   }
 
-  const user = await githubJson<GithubUser>(`/users/${handle}`);
+  const user = await githubJson<GithubUser>(`/users/${handle}`, token);
   if (!user) {
     return {
       login: handle,
@@ -312,21 +320,24 @@ export async function scanGithub(login: string): Promise<GithubScan | null> {
     };
   }
 
+  const perPage = token ? 30 : 8;
+  const scanLimit = token ? 12 : 5;
   const repos =
     (await githubJson<GithubRepo[]>(
-      `/users/${handle}/repos?per_page=8&sort=updated&type=owner`,
+      `/users/${handle}/repos?per_page=${perPage}&sort=updated&type=owner`,
+      token,
     )) ?? [];
 
   const scanned = await Promise.all(
-    repos.slice(0, 5).map(async (repo) => {
+    repos.slice(0, scanLimit).map(async (repo) => {
       const [sensitiveHits, hasGitignore, pkg] = await Promise.all([
         Promise.all(
           SENSITIVE_PATHS.map(async (file) =>
-            (await githubExists(repo.full_name, file)) ? file : null,
+            (await githubExists(repo.full_name, file, token)) ? file : null,
           ),
         ),
-        githubExists(repo.full_name, ".gitignore"),
-        githubPackageNames(repo.full_name),
+        githubExists(repo.full_name, ".gitignore", token),
+        githubPackageNames(repo.full_name, token),
       ]);
 
       return {

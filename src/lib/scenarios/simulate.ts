@@ -86,6 +86,180 @@ function privacyRegs(assessments: RegulationAssessment[]) {
   );
 }
 
+function canonicalThree(input: {
+  graph: RiskGraph | null;
+  vendors: VendorMap | null;
+  assessments: RegulationAssessment[];
+}): ScenarioResult[] {
+  const vendors = input.vendors?.vendors ?? [];
+  const cloud =
+    vendors.find(
+      (item) =>
+        item.category === "hosting" ||
+        item.category === "cdn" ||
+        item.category === "cms",
+    ) ?? null;
+  const payment = vendors.find((item) => item.category === "payments") ?? null;
+  const secretRepo = nodesOf(input.graph, "repository").find(
+    (node) => node.importance === "critical",
+  );
+  const regs = privacyRegs(input.assessments);
+  const apps = nodesOf(input.graph, "application");
+
+  return [
+    {
+      id: "canonical-cloud",
+      kind: "vendor_outage",
+      title: cloud
+        ? `${cloud.name} unavailable for 48 hours`
+        : "Primary cloud unavailable for 48 hours",
+      question: cloud
+        ? `What if ${cloud.name} goes down for 48 hours?`
+        : "What if our primary cloud or hosting is unavailable for 48 hours?",
+      duration: "48 hours",
+      severity: cloud && !vendors.some((item) => item.category === cloud.category && item.id !== cloud.id)
+        ? "critical"
+        : "high",
+      confidence: cloud ? 76 : 42,
+      trustStatus: cloud ? "inferred" : "unknown",
+      originLabel: cloud?.name ?? "Primary cloud / hosting",
+      chain: [
+        cloud?.name ?? "Primary cloud",
+        "Application hosting",
+        "Customer access",
+        "Operations",
+        "Revenue",
+      ],
+      affectedSystems: apps.map((node) => node.label).slice(0, 6),
+      affectedVendors: cloud ? [cloud.name] : [],
+      affectedRegulations: nodesOf(input.graph, "regulation")
+        .map((node) => node.label)
+        .slice(0, 4),
+      affectedFindings: nodesOf(input.graph, "risk")
+        .filter((node) => node.risk === "critical" || node.risk === "high")
+        .map((node) => node.label)
+        .slice(0, 6),
+      operational: cloud
+        ? `${cloud.name} is on the observed hosting path. A two-day outage would interrupt the public application unless a tested failover exists.`
+        : "No hosting vendor is in the model yet. The scenario still runs: concentration on one cloud is a material operational risk for any digital company.",
+      financial: "UNKNOWN. VERIQ will not invent downtime or revenue-at-risk figures.",
+      alternative: cloud
+        ? alternateNote(
+            vendors.filter(
+              (item) => item.category === cloud.category && item.id !== cloud.id,
+            ),
+            cloud,
+          )
+        : "Not detected. Add a website or declare the cloud provider.",
+      notification: "UNKNOWN. Status-page and customer-notice obligations were not attested.",
+      mitigations: [
+        "Name the production cloud account and the owner who can fail over.",
+        "Attest a secondary region or provider and the last restore test date.",
+        "Write the 48-hour customer message before it is needed.",
+      ],
+      unknowns: ["Which cloud actually hosts production", "Tested failover", "RTO / RPO"],
+    },
+    {
+      id: "canonical-payment",
+      kind: "vendor_outage",
+      title: payment
+        ? `${payment.name} unavailable for 48 hours`
+        : "Primary payment rail unavailable for 48 hours",
+      question: payment
+        ? `What if ${payment.name} fails for 48 hours?`
+        : "What if our primary payment provider fails for 48 hours?",
+      duration: "48 hours",
+      severity: "critical",
+      confidence: payment ? 80 : 40,
+      trustStatus: payment ? "inferred" : "unknown",
+      originLabel: payment?.name ?? "Primary payment rail",
+      chain: [
+        payment?.name ?? "Payment provider",
+        "Transaction processing",
+        "Customer payments",
+        "Revenue",
+        "Liquidity",
+        "Operations",
+      ],
+      affectedSystems: apps.map((node) => node.label).slice(0, 6),
+      affectedVendors: payment ? [payment.name] : [],
+      affectedRegulations: regs.map((item) => item.code),
+      affectedFindings: nodesOf(input.graph, "risk")
+        .filter((node) => node.id.includes("payment") || node.label.toLowerCase().includes("payment"))
+        .map((node) => node.label)
+        .slice(0, 6),
+      operational: payment
+        ? `${payment.name} sits on the collections path. Customer payments, onboarding and liquidity all sit downstream.`
+        : "No payment vendor is observed yet. The scenario still runs because a single rail is how most Kenyan fintechs and SaaS companies take money.",
+      financial: "UNKNOWN. No transaction volume or cash position is in the company model.",
+      alternative: payment
+        ? alternateNote(
+            vendors.filter(
+              (item) => item.category === "payments" && item.id !== payment.id,
+            ),
+            payment,
+          )
+        : "Not detected. Declare Paystack, M-Pesa, Stripe or the bank rail you actually use.",
+      notification: "UNKNOWN whether scheme, bank or customer notice is required for an outage.",
+      mitigations: [
+        "Record the primary rail, the contract owner, and whether a second rail is live.",
+        "Test a fallback collection path (another PSP, till, or invoice).",
+        "Decide who tells customers if collections stop for a day.",
+      ],
+      unknowns: ["Actual processor", "Second rail", "Revenue on this path"],
+    },
+    {
+      id: "canonical-secret",
+      kind: "secret_exploit",
+      title: secretRepo
+        ? "Exposed credentials are used"
+        : "A production credential is leaked",
+      question: secretRepo
+        ? "What if a public credential-class file is used by someone else?"
+        : "What if a production credential is leaked?",
+      duration: "Until rotated and history cleaned",
+      severity: secretRepo ? "critical" : "high",
+      confidence: secretRepo ? 84 : 46,
+      trustStatus: secretRepo ? "inferred" : "unknown",
+      originLabel: secretRepo?.label ?? "Production credentials",
+      chain: [
+        secretRepo?.label ?? "Credential",
+        "Unauthorised access",
+        "Application / data",
+        regs[0]?.code ?? "Privacy / security duty",
+        "Incident",
+      ],
+      affectedSystems: apps.map((node) => node.label).slice(0, 6),
+      affectedVendors: nodesOf(input.graph, "vendor")
+        .map((node) => node.label)
+        .slice(0, 6),
+      affectedRegulations: regs.map((item) => item.code),
+      affectedFindings: nodesOf(input.graph, "risk")
+        .filter((node) => node.id.includes("sensitive") || node.label.toLowerCase().includes("credential"))
+        .map((node) => node.label)
+        .slice(0, 6),
+      operational: secretRepo
+        ? "A public file that often holds secrets is an access path. VERIQ recorded the path — not the secret — and will not assume the value was harmless."
+        : "No public credential-class file was observed. The scenario still runs: leaked production credentials are how most serious incidents start.",
+      financial: "UNKNOWN. Fraud, recovery and regulatory cost are not modelled.",
+      alternative: "Rotation is the mitigation. There is no alternate credential vendor.",
+      notification: regs.length
+        ? `Inferred: assess notification under ${regs.map((item) => item.code).join(", ")} if personal data or production access was in scope.`
+        : "UNKNOWN whether this is a notifiable incident.",
+      mitigations: [
+        secretRepo
+          ? "Remove the file from git history and rotate any credentials that may have been present."
+          : "Inventory production secrets, rotate anything that has been in chat or a ticket, and keep them out of git.",
+        "Treat this as a security and privacy event until proven otherwise.",
+        "Add secret scanning to CI and rescan.",
+      ],
+      unknowns: secretRepo
+        ? ["Whether a live secret was present", "Whether it was used", "Data accessed"]
+        : ["Where production secrets actually live", "Whether any have leaked", "Blast radius"],
+    },
+  ];
+}
+
 function outageFor(vendor: VendorAssessment, input: {
   graph: RiskGraph | null;
   vendors: VendorAssessment[];
@@ -404,10 +578,18 @@ export function simulateScenarios(input: {
   });
 
   const unique = new Map<string, ScenarioResult>();
-  for (const item of results) unique.set(item.id, item);
-  return [...unique.values()].sort(
-    (a, b) => SEV_RANK[a.severity] - SEV_RANK[b.severity] || b.confidence - a.confidence,
-  );
+  for (const item of [...canonicalThree(input), ...results]) unique.set(item.id, item);
+  const canonicalOrder = ["canonical-cloud", "canonical-payment", "canonical-secret"];
+  return [...unique.values()].sort((a, b) => {
+    const ac = canonicalOrder.indexOf(a.id);
+    const bc = canonicalOrder.indexOf(b.id);
+    if (ac !== -1 || bc !== -1) {
+      if (ac === -1) return 1;
+      if (bc === -1) return -1;
+      return ac - bc;
+    }
+    return SEV_RANK[a.severity] - SEV_RANK[b.severity] || b.confidence - a.confidence;
+  });
 }
 
 export function scenarioById(

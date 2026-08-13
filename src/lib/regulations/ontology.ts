@@ -144,6 +144,18 @@ export const REGULATION_CATALOG: RegulationDef[] = [
     impact: "Unfair digital practices create complaints, refunds and reputational damage.",
   },
   {
+    code: "KE-CMCA",
+    name: "Computer Misuse and Cybercrimes Act, 2018",
+    jurisdiction: "KE",
+    category: "cybersecurity",
+    summary:
+      "Kenya’s criminal and investigative framework for unauthorised access, data interference, cyber harassment and related offences.",
+    industries: ALL,
+    controls: ["cybersecurity", "incident_management", "access_management"],
+    evidence: CYBER_EVIDENCE,
+    impact: "A credential leak or exposed endpoint can become a criminal-incident and reporting event, not only an IT finding.",
+  },
+  {
     code: "UG-DPA",
     name: "Uganda Data Protection and Privacy Act, 2019",
     jurisdiction: "UG",
@@ -155,6 +167,18 @@ export const REGULATION_CATALOG: RegulationDef[] = [
     impact: "Personal Data Protection Office expectations on lawful processing and security.",
   },
   {
+    code: "UG-AML",
+    name: "Anti-Money Laundering Act (Uganda)",
+    jurisdiction: "UG",
+    category: "aml",
+    summary:
+      "Uganda’s AML/CFT obligations for financial institutions and accountable persons, including CDD and suspicious transaction reporting.",
+    industries: ["financial_services", "fintech", "insurance"],
+    controls: ["aml", "financial_controls"],
+    evidence: AML_EVIDENCE,
+    impact: "Banking relationships and licence conditions depend on an evidenced AML programme.",
+  },
+  {
     code: "TZ-PDPA",
     name: "Tanzania Personal Data Protection Act, 2022",
     jurisdiction: "TZ",
@@ -164,6 +188,42 @@ export const REGULATION_CATALOG: RegulationDef[] = [
     controls: ["privacy", "data_security", "processing"],
     evidence: PRIVACY_EVIDENCE,
     impact: "Registration and safeguard duties for controllers and processors.",
+  },
+  {
+    code: "TZ-CYBER",
+    name: "Cybercrimes Act (Tanzania)",
+    jurisdiction: "TZ",
+    category: "cybersecurity",
+    summary:
+      "Tanzania’s cybercrime statute covering unauthorised access, data interference and related computer offences.",
+    industries: ALL,
+    controls: ["cybersecurity", "incident_management", "access_management"],
+    evidence: CYBER_EVIDENCE,
+    impact: "Public credential exposure and weak access control become legal as well as operational findings.",
+  },
+  {
+    code: "RW-DPA",
+    name: "Law Nº 058/2021 relating to the protection of personal data",
+    jurisdiction: "RW",
+    category: "privacy",
+    summary:
+      "Rwanda’s personal data protection law — lawful processing, security, retention and data subject rights under NCSA oversight.",
+    industries: ALL,
+    controls: ["privacy", "data_security", "retention", "processing", "data_subject_rights"],
+    evidence: PRIVACY_EVIDENCE,
+    impact: "NCSA expectations on safeguards and accountability for Rwandan personal data.",
+  },
+  {
+    code: "RW-CYBER",
+    name: "Law on cyber security / critical information infrastructure (Rwanda)",
+    jurisdiction: "RW",
+    category: "cybersecurity",
+    summary:
+      "Rwanda’s cybersecurity and critical-information-infrastructure expectations, including incident handling and access control.",
+    industries: ["financial_services", "fintech", "telecommunications", "public_sector", "energy"],
+    controls: ["cybersecurity", "incident_management", "access_management"],
+    evidence: CYBER_EVIDENCE,
+    impact: "Weak internet posture and unowned incidents become supervisory findings.",
   },
   {
     code: "NG-NDPA",

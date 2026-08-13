@@ -92,9 +92,24 @@ textarea {
 }
 
 @media print {
+  @page {
+    margin: 16mm;
+  }
+
+  html,
   body {
-    background: #fff;
+    background: #fff !important;
+    color: #111 !important;
+  }
+
+  .report-print {
     color: #111;
+  }
+
+  .report-print section {
+    break-inside: avoid;
+    border-color: #d6d6d6 !important;
+    background: #fff !important;
   }
 
   .report-print h1,
@@ -102,6 +117,7 @@ textarea {
   .report-print p,
   .report-print li,
   .report-print span {
+    color: inherit;
     break-inside: avoid;
   }
 }
