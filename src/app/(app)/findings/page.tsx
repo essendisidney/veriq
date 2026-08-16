@@ -8,9 +8,16 @@ import { useWorkspace } from "@/components/workspace/workspace-provider";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CertaintyBadge, SeverityBadge } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { downloadTextFile, slugFile, toCsv } from "@/lib/reports/export";
 import type { Certainty, Risk, RiskStatus, Severity } from "@/lib/database.types";
+import {
+  STAGE_LABELS,
+  VALIDATION_LABELS,
+  VALIDATION_STATUSES,
+  type ValidationStatus,
+} from "@/lib/risk/validate";
 
 const RANK: Record<Severity, number> = {
   critical: 0,
@@ -26,6 +33,7 @@ export default function FindingsPage() {
   const [severity, setSeverity] = useState<Severity | "all">("all");
   const [status, setStatus] = useState<RiskStatus | "all">("open");
   const [certainty, setCertainty] = useState<Certainty | "all">("all");
+  const [validation, setValidation] = useState<ValidationStatus | "all">("all");
 
   useEffect(() => {
     if (!currentOrg) return;
@@ -50,14 +58,19 @@ export default function FindingsPage() {
           ? true
           : (risk.certainty ?? "potential") === certainty,
       )
+      .filter((risk) =>
+        validation === "all"
+          ? true
+          : (risk.validation_status ?? "pending") === validation,
+      )
       .sort((a, b) => RANK[a.severity] - RANK[b.severity]);
-  }, [risks, severity, status, certainty]);
+  }, [risks, severity, status, certainty, validation]);
 
   return (
     <div>
       <PageHeader
         title="Findings"
-        description="Evidence-backed risks. Confirmed means we observed it. Potential means we inferred it. Informational is a notice."
+        description="Signal, finding, then validated finding. VERIQ will not treat a scan observation as a conclusion until it is validated."
         actions={
           filtered.length > 0 ? (
             <Button
@@ -132,6 +145,18 @@ export default function FindingsPage() {
           <option value="potential">Potential</option>
           <option value="informational">Informational</option>
         </select>
+        <select
+          value={validation}
+          onChange={(e) => setValidation(e.target.value as ValidationStatus | "all")}
+          className="h-9 rounded-lg border border-[var(--border)] bg-[var(--elevated)] px-2 text-xs text-[var(--ink)]"
+        >
+          <option value="all">All validation</option>
+          {VALIDATION_STATUSES.map((item) => (
+            <option key={item} value={item}>
+              {VALIDATION_LABELS[item]}
+            </option>
+          ))}
+        </select>
       </div>
 
       {filtered.length === 0 ? (
@@ -170,7 +195,8 @@ export default function FindingsPage() {
                       {risk.title}
                     </Link>
                     <p className="mt-1 text-xs capitalize text-[var(--muted)]">
-                      {risk.category} · {risk.confidence}%
+                      {risk.category} · {risk.confidence}% ·{" "}
+                      {STAGE_LABELS[risk.intelligence_stage ?? "finding"]}
                     </p>
                   </td>
                   <td className="px-4 py-3">
@@ -183,7 +209,9 @@ export default function FindingsPage() {
                     {risk.owner_role ?? "Unassigned"}
                   </td>
                   <td className="px-4 py-3 capitalize text-[var(--muted)]">
-                    {risk.status.replace("_", " ")}
+                    <Badge variant="muted">
+                      {VALIDATION_LABELS[risk.validation_status ?? "pending"]}
+                    </Badge>
                   </td>
                 </tr>
               ))}

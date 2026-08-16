@@ -9,6 +9,8 @@ import type { AiAssessment } from "@/lib/ai/assess";
 import type { ChangeSet, ScanSnapshot } from "@/lib/changes/diff";
 import type { WorldAssessment } from "@/lib/world/assess";
 import type { IntegrityAssessment } from "@/lib/integrity/assess";
+import type { ClaimsAssessment } from "@/lib/claims/assess";
+import { buildTrustProfile, type TrustProfile } from "@/lib/truth/profile";
 import type { Action, Risk, Score } from "@/lib/database.types";
 import type { Exposure } from "@/lib/scan/exposure";
 import type { RegulationAssessment } from "@/lib/regulations/assess";
@@ -68,6 +70,8 @@ export function useReportBundle() {
             changes?: ChangeSet;
             world?: WorldAssessment;
             integrity?: IntegrityAssessment;
+            claims?: ClaimsAssessment;
+            trust?: TrustProfile;
             snapshot?: ScanSnapshot;
             risks?: number;
           }
@@ -104,6 +108,15 @@ export function useReportBundle() {
         exposure: latest?.exposure ?? null,
         snapshot: latest?.snapshot ?? null,
         integrity: latest?.integrity ?? null,
+        claims: latest?.claims ?? null,
+        trust:
+          latest?.trust ??
+          buildTrustProfile({
+            risk: ((scores?.[0] as Score) ?? null)?.overall ?? 0,
+            claims: latest?.claims ?? null,
+            integrity: latest?.integrity ?? null,
+            risks: (topRisks as Risk[]) ?? [],
+          }),
       });
       setLoaded(true);
     }

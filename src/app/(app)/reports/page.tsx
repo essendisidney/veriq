@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { FileText } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
+import { useWorkspace } from "@/components/workspace/workspace-provider";
+import { packsForIndustry } from "@/lib/truth/packs";
 
 const reports = [
   {
@@ -71,6 +73,12 @@ const reports = [
       "Observed notices versus trackers, connected GitHub, and Kenya registers that stay UNKNOWN until they are actually public. Not an EACC finding.",
   },
   {
+    href: "/reports/procurement",
+    title: "Procurement risk report",
+    description:
+      "Claim consistency, related-party unknowns and PPADA mapping before you award. Not a bid evaluation or PPRA finding.",
+  },
+  {
     href: "/world",
     title: "External world watch",
     description:
@@ -84,12 +92,33 @@ const reports = [
 ];
 
 export default function ReportsPage() {
+  const { currentOrg } = useWorkspace();
+  const packs = packsForIndustry(currentOrg?.industry ?? "other");
+
   return (
     <div>
       <PageHeader
         title="Reports"
-        description="Board, executive, investor, lender, counsel and domain packs from the latest scan. Print to PDF, export CSV / JSON, or email a read-only share link."
+        description="The same finding does not mean the same thing for a bank, a hospital and a contractor. Packs are industry-aware views of evidence — not more AI."
       />
+      <section className="mb-8">
+        <h2 className="font-display text-2xl">Risk packs for this company</h2>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          {packs.map((pack) => (
+            <Link
+              key={pack.id}
+              href={pack.href}
+              className="rounded-2xl border border-[var(--accent)] bg-[var(--accent-dim)] p-5 hover:opacity-90"
+            >
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--accent)]">
+                {pack.title}
+              </p>
+              <p className="mt-2 text-sm text-[var(--ink)]">{pack.question}</p>
+              <p className="mt-2 text-xs text-[var(--muted)]">{pack.domains.join(" · ")}</p>
+            </Link>
+          ))}
+        </div>
+      </section>
       <div className="grid gap-4">
         {reports.map((item) => (
           <Link

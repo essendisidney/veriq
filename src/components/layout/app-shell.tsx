@@ -7,6 +7,12 @@ import {
   Activity,
   BookOpen,
   Boxes,
+  MessageSquare,
+  Fingerprint,
+  Swords,
+  Sunrise,
+  DoorOpen,
+  BadgeCheck,
   FlaskConical,
   Banknote,
   Share2,
@@ -22,6 +28,7 @@ import {
   FileText,
   KeyRound,
   Plug,
+  Scale,
   Settings,
   ShieldAlert,
   Server,
@@ -34,12 +41,19 @@ import { NotificationBell } from "@/components/notification-bell";
 
 const navItems = [
   { label: "Radar", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Brief", href: "/brief", icon: Sunrise },
+  { label: "Ask VERIQ", href: "/ask", icon: MessageSquare },
+  { label: "Score", href: "/score", icon: Scale },
   { label: "Risk Graph", href: "/graph", icon: Share2 },
+  { label: "Decide", href: "/decide", icon: DoorOpen },
   { label: "Scenarios", href: "/scenarios", icon: FlaskConical },
   { label: "Reports", href: "/reports", icon: FileText },
   { label: "Changes", href: "/changes", icon: GitCompareArrows },
   { label: "External", href: "/world", icon: Globe },
   { label: "Integrity", href: "/integrity", icon: Landmark },
+  { label: "Truth", href: "/truth", icon: Fingerprint },
+  { label: "Challenge", href: "/challenge", icon: Swords },
+  { label: "Passport", href: "/passport", icon: BadgeCheck },
   { label: "Findings", href: "/findings", icon: ShieldAlert },
   { label: "Actions", href: "/actions", icon: ListChecks },
   { label: "Technology", href: "/technology", icon: Server },
@@ -126,7 +140,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       </nav>
       <div className="border-t border-[var(--border)] p-3">
         <p className="px-3 text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
-          Verify. Understand. Predict.
+          Before you trust a company, VERIQ it.
         </p>
       </div>
     </div>

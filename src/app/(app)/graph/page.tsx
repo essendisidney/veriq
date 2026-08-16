@@ -60,7 +60,7 @@ export default function GraphPage() {
     <div>
       <PageHeader
         title="Risk Graph"
-        description="How the company, application, vendors, regulations and findings connect. Individual findings are not enough — VERIQ correlates them."
+        description="How the company, claims, vendors, regulations and findings connect. Individual findings are not enough — VERIQ correlates them."
         actions={
           <Link
             href="/scenarios"

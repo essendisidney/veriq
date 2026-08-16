@@ -28,11 +28,13 @@ const TYPE_COLOR: Record<GraphNodeType, string> = {
   ai: "#a78bfa",
   external: "#38bdf8",
   regulation: "var(--medium)",
+  claim: "#fbbf24",
   risk: "var(--critical)",
 };
 
 const LAYERS: GraphNodeType[][] = [
   ["company"],
+  ["claim"],
   ["application"],
   ["repository"],
   ["vendor", "ai", "regulation", "external"],

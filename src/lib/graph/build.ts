@@ -4,6 +4,8 @@ import type { GithubScan, WebsiteScan } from "@/lib/scan/engine";
 import type { VendorMap } from "@/lib/vendors/assess";
 import type { AiAssessment } from "@/lib/ai/assess";
 import type { WorldAssessment } from "@/lib/world/assess";
+import type { ClaimsAssessment } from "@/lib/claims/assess";
+import { isContradicted } from "@/lib/claims/catalog";
 
 export type GraphNodeType =
   | "company"
@@ -13,7 +15,8 @@ export type GraphNodeType =
   | "ai"
   | "external"
   | "regulation"
-  | "risk";
+  | "risk"
+  | "claim";
 
 export type GraphEdgeKind =
   | "owns"
@@ -24,7 +27,9 @@ export type GraphEdgeKind =
   | "connected_to"
   | "regulated_by"
   | "affects"
-  | "exposes";
+  | "exposes"
+  | "asserts"
+  | "conflicts_with";
 
 export type GraphImportance = "critical" | "high" | "medium" | "low";
 
@@ -77,6 +82,8 @@ const EDGE_KIND_LABELS: Record<GraphEdgeKind, string> = {
   regulated_by: "regulated by",
   affects: "affects",
   exposes: "exposes",
+  asserts: "asserts",
+  conflicts_with: "conflicts with",
 };
 
 export function edgeKindLabel(kind: GraphEdgeKind) {
@@ -92,6 +99,7 @@ export const NODE_TYPE_LABELS: Record<GraphNodeType, string> = {
   external: "External",
   regulation: "Regulation",
   risk: "Risk",
+  claim: "Claim",
 };
 
 function addNode(nodes: Map<string, GraphNode>, node: GraphNode) {
@@ -118,6 +126,7 @@ export function buildRiskGraph(input: {
   vendors: VendorMap | null;
   ai: AiAssessment | null;
   world: WorldAssessment | null;
+  claims?: ClaimsAssessment | null;
   risks: {
     fingerprint: string;
     title: string;
@@ -260,6 +269,25 @@ export function buildRiskGraph(input: {
     addEdge(edges, "company", id, "regulated_by");
   }
 
+  for (const claim of input.claims?.claims ?? []) {
+    const id = `claim:${claim.id}`;
+    addNode(nodes, {
+      id,
+      type: "claim",
+      label: claim.title,
+      importance: isContradicted(claim.verdict) ? "high" : "medium",
+      href: "/truth",
+      evidence: `${claim.verdict} · ${claim.claim}`,
+      owner: "Executive",
+    });
+    addEdge(
+      edges,
+      "company",
+      id,
+      isContradicted(claim.verdict) ? "conflicts_with" : "asserts",
+    );
+  }
+
   const ranked = [...input.risks].sort(
     (a, b) => SEV_RANK[a.severity] - SEV_RANK[b.severity],
   );
@@ -269,7 +297,7 @@ export function buildRiskGraph(input: {
       risk.fingerprint.startsWith("vendor:") ||
       risk.fingerprint.startsWith("ai:") ||
       risk.fingerprint.startsWith("world:") ||
-      risk.fingerprint.startsWith("reg:") ||
+      risk.fingerprint.startsWith("claim:") ||
       risk.fingerprint.includes("sensitive") ||
       risk.severity === "critical" ||
       risk.severity === "high";
@@ -317,6 +345,10 @@ export function buildRiskGraph(input: {
       if (!aiIds.length) addEdge(edges, "company", id, "exposes");
     } else if (risk.fingerprint.startsWith("world:")) {
       addEdge(edges, risk.fingerprint, id, "affects");
+      addEdge(edges, "company", id, "exposes");
+    } else if (risk.fingerprint.startsWith("claim:")) {
+      const claimId = risk.fingerprint.split(":").slice(2).join(":");
+      if (claimId) addEdge(edges, `claim:${claimId}`, id, "conflicts_with");
       addEdge(edges, "company", id, "exposes");
     } else if (risk.fingerprint.startsWith("reg:")) {
       const parts = risk.fingerprint.split(":");
@@ -484,6 +516,18 @@ function correlate(input: {
         input.privacyRegs[0],
         ...(aiRisk ? [riskNodeId(aiRisk.fingerprint)] : []),
       ],
+    });
+  }
+
+  const claimRisk = riskByPrefix("claim:contradicted:") ?? riskByPrefix("claim:conflict:");
+  if (claimRisk) {
+    paths.push({
+      id: `corr:claim:${claimRisk.fingerprint}`,
+      title: "The story conflicts with observed evidence",
+      severity: "high",
+      reason:
+        "A management or website claim does not match the public footprint. This is a consistency gap, not a finding of fraud.",
+      nodes: ["company", riskNodeId(claimRisk.fingerprint)],
     });
   }
 

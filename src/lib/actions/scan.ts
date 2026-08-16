@@ -21,6 +21,13 @@ import { assessAi, detectAi, parseAttestedAi, systemFromAsset } from "@/lib/ai/a
 import { assessWorld } from "@/lib/world/assess";
 import { assessIntegrity } from "@/lib/integrity/assess";
 import {
+  assessClaims,
+  extractObservedClaims,
+  parseAttestedClaims,
+  CLAIMS_ASSET,
+} from "@/lib/claims/assess";
+import { buildTrustProfile } from "@/lib/truth/profile";
+import {
   buildSnapshot,
   criticalityFor,
   diffSnapshots,
@@ -284,6 +291,13 @@ export async function runOrganizationScan(
       declared: declaredAi,
       attested: parseAttestedAi(aiGovernance?.metadata),
     });
+    const observedClaims = extractObservedClaims({
+      html: website?.html,
+      teamFootprint: website?.teamFootprint,
+      teamPageUrl: website?.teamPageUrl,
+      githubPublicRepos: github?.publicRepos ?? github?.repos.length ?? 0,
+      vendors: vendorMap,
+    });
     if (website) website.html = "";
 
     const { data: financeAsset } = await supabase
@@ -292,6 +306,13 @@ export async function runOrganizationScan(
       .eq("organization_id", organizationId)
       .eq("type", "finance")
       .eq("name", "Financial signals")
+      .maybeSingle();
+    const { data: claimsAsset } = await supabase
+      .from("assets")
+      .select("metadata")
+      .eq("organization_id", organizationId)
+      .eq("type", CLAIMS_ASSET.type)
+      .eq("name", CLAIMS_ASSET.name)
       .maybeSingle();
     const finance = assessFinance({
       vendors: vendorMap,
@@ -324,6 +345,11 @@ export async function runOrganizationScan(
       ai,
       finance,
       assessments,
+    });
+    const claims = assessClaims({
+      attested: parseAttestedClaims(claimsAsset?.metadata),
+      observed: observedClaims,
+      industry: org.industry,
     });
 
     for (const vendor of vendorMap.vendors) {
@@ -416,6 +442,7 @@ export async function runOrganizationScan(
       finance,
       ai,
       world,
+      claims,
       country: org.country,
       industry: org.industry,
     });
@@ -432,13 +459,14 @@ export async function runOrganizationScan(
       vendors: vendorMap,
       ai,
       world,
+      claims,
       risks: drafts,
     });
 
     for (const draft of drafts) {
       const { data: existing } = await supabase
         .from("risks")
-        .select("id, status")
+        .select("id, status, fingerprint, title, severity, validation_status, validated_at")
         .eq("organization_id", organizationId)
         .eq("fingerprint", draft.fingerprint)
         .maybeSingle();
@@ -449,6 +477,13 @@ export async function runOrganizationScan(
         existing?.status === "in_progress"
           ? existing.status
           : "open";
+      const humanValidated = Boolean(existing?.validated_at);
+      const validationStatus = humanValidated
+        ? (existing?.validation_status ?? draft.validation_status ?? "pending")
+        : (draft.validation_status ?? "pending");
+      if (humanValidated) {
+        draft.validation_status = validationStatus;
+      }
 
       let riskId = existing?.id;
       if (riskId) {
@@ -468,9 +503,21 @@ export async function runOrganizationScan(
             recommendation: draft.recommendation,
             owner_role: draft.owner_role,
             status: preserved,
+            validation_status: validationStatus,
+            required_document: draft.required_document ?? null,
+            ...(humanValidated
+              ? {}
+              : {
+                  intelligence_stage: draft.intelligence_stage ?? "finding",
+                  validation_method: draft.validation_method ?? "observed",
+                }),
           })
           .eq("id", riskId);
-        await supabase.from("evidence").delete().eq("risk_id", riskId);
+        await supabase
+          .from("evidence")
+          .delete()
+          .eq("risk_id", riskId)
+          .neq("source_type", "document");
       } else {
         const { data: inserted, error: riskError } = await supabase
           .from("risks")
@@ -489,6 +536,10 @@ export async function runOrganizationScan(
             recommendation: draft.recommendation,
             owner_role: draft.owner_role,
             fingerprint: draft.fingerprint,
+            validation_status: draft.validation_status ?? "pending",
+            intelligence_stage: draft.intelligence_stage ?? "finding",
+            validation_method: draft.validation_method ?? "observed",
+            required_document: draft.required_document ?? null,
           })
           .select("id")
           .single();
@@ -540,6 +591,12 @@ export async function runOrganizationScan(
     }
 
     const score = scoreFromRisks(drafts);
+    const trust = buildTrustProfile({
+      risk: score.overall,
+      claims,
+      integrity,
+      risks: drafts,
+    });
     const previousFindings = (previousOpen.data ?? []).map((row) => ({
       fingerprint: row.fingerprint,
       title: row.title,
@@ -671,6 +728,8 @@ export async function runOrganizationScan(
           ai,
           world,
           integrity,
+          claims,
+          trust,
           overall: score.overall,
           exposure: exposureJoined,
           snapshot,

@@ -21,7 +21,9 @@ The live MVP already answers:
 
 > Connect a company → scan website + public GitHub → produce evidence → score → recommend actions → rescan.
 
-Uncommitted local work extends that spine with exposure, regulations, vendors, graph, scenarios, finance, AI, world signals, reports, webhooks, and the VERIQ API. Do not start a fifth platform until this expansion is committed, deployed, and used on real Kenyan companies.
+Uncommitted local work extends that spine with the **Truth Layer**: five evidence states, a claim ledger, evidence score vs risk score, decision confidence, Challenge mode, and industry risk packs. VERIQ does not scrape government registries or compete as another KYB database.
+
+Do not start a fifth platform until this expansion is committed, deployed, and used on real Kenyan companies.
 
 ---
 

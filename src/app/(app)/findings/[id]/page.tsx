@@ -9,9 +9,15 @@ import { CertaintyBadge, SeverityBadge } from "@/components/ui/badge";
 import { Badge } from "@/components/ui/badge";
 import { ActionStatusSelect, RiskStatusSelect } from "@/components/triage-controls";
 import { AttestRegulation } from "@/components/attest-regulation";
+import { ValidateFinding } from "@/components/validate-finding";
 import { TRUST_LABELS, formatDateTime } from "@/lib/utils";
 import { certaintyWhy, isOverdue } from "@/lib/risk/certainty";
-import type { Action, Evidence, Risk } from "@/lib/database.types";
+import {
+  STAGE_LABELS,
+  VALIDATION_LABELS,
+  type ValidationStatus,
+} from "@/lib/risk/validate";
+import type { Action, Evidence, EvidenceDocument, Risk, ValidationEvent } from "@/lib/database.types";
 import { NODE_TYPE_LABELS, neighborsOf, type RiskGraph } from "@/lib/graph/build";
 import type { RegulationAssessment } from "@/lib/regulations/assess";
 import {
@@ -39,12 +45,15 @@ export default function FindingDetailPage() {
   const [related, setRelated] = useState<RiskGraph["nodes"]>([]);
   const [statute, setStatute] = useState<RegulationAssessment | null>(null);
   const [savedAttest, setSavedAttest] = useState<Record<string, ArtefactBand>>({});
+  const [documents, setDocuments] = useState<EvidenceDocument[]>([]);
+  const [events, setEvents] = useState<ValidationEvent[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     async function load() {
       const supabase = createClient();
-      const [{ data: riskRow }, { data: evidenceRows }, { data: actionRows }] =
+      const [{ data: riskRow }, { data: evidenceRows }, { data: actionRows }, { data: docs }, { data: trail }] =
         await Promise.all([
           supabase.from("risks").select("*").eq("id", params.id).single(),
           supabase
@@ -53,12 +62,24 @@ export default function FindingDetailPage() {
             .eq("risk_id", params.id)
             .order("observed_at", { ascending: false }),
           supabase.from("actions").select("*").eq("risk_id", params.id),
+          supabase
+            .from("evidence_documents")
+            .select("*")
+            .eq("risk_id", params.id)
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("validation_events")
+            .select("*")
+            .eq("risk_id", params.id)
+            .order("created_at", { ascending: false }),
         ]);
       const nextRisk = (riskRow as Risk) ?? null;
       const nextEvidence = (evidenceRows as Evidence[]) ?? [];
       setRisk(nextRisk);
       setEvidence(nextEvidence);
       setActions((actionRows as Action[]) ?? []);
+      setDocuments((docs as EvidenceDocument[]) ?? []);
+      setEvents((trail as ValidationEvent[]) ?? []);
 
       if (nextRisk) {
         const code = regulationCodeFromFinding({
@@ -99,7 +120,7 @@ export default function FindingDetailPage() {
       setLoaded(true);
     }
     void load();
-  }, [params.id]);
+  }, [params.id, tick]);
 
   if (!loaded) {
     return <p className="text-sm text-[var(--muted)]">Loading finding…</p>;
@@ -133,6 +154,12 @@ export default function FindingDetailPage() {
           <div className="flex flex-wrap items-center gap-2">
             <SeverityBadge severity={risk.severity} />
             <CertaintyBadge certainty={risk.certainty ?? "potential"} />
+            <Badge variant="muted">
+              {STAGE_LABELS[risk.intelligence_stage ?? "finding"]}
+            </Badge>
+            <Badge variant="warning">
+              {VALIDATION_LABELS[risk.validation_status ?? "pending"]}
+            </Badge>
           </div>
         }
         className="mt-4"
@@ -140,6 +167,19 @@ export default function FindingDetailPage() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <section className="space-y-4 lg:col-span-2">
+          <div className="rounded-2xl border border-[var(--accent)] bg-[var(--accent-dim)] p-6">
+            <h2 className="font-display text-xl">What should I do?</h2>
+            <p className="mt-2 text-sm leading-6 text-[var(--ink)]">
+              {risk.recommendation ??
+                "Request evidence, then mark this finding resolved or upload an artefact so VERIQ can reassess. Do nothing is a decision."}
+            </p>
+            {actions[0] && (
+              <p className="mt-3 text-sm text-[var(--muted)]">
+                Open action: {actions[0].title}
+                {actions[0].owner_role ? ` · ${actions[0].owner_role}` : ""}
+              </p>
+            )}
+          </div>
           <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
             <h2 className="font-display text-xl">Why this matters</h2>
             <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
@@ -271,6 +311,15 @@ export default function FindingDetailPage() {
               </div>
             </dl>
           </div>
+          <ValidateFinding
+            organizationId={risk.organization_id}
+            riskId={risk.id}
+            requiredDocument={risk.required_document}
+            validationStatus={(risk.validation_status ?? "pending") as ValidationStatus}
+            documents={documents}
+            events={events}
+            onDone={() => setTick((value) => value + 1)}
+          />
           {statute && (
             <div className="space-y-3">
               <Link

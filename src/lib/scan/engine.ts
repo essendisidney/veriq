@@ -5,7 +5,15 @@ import type { VendorMap } from "@/lib/vendors/assess";
 import type { FinanceAssessment } from "@/lib/finance/assess";
 import type { AiAssessment } from "@/lib/ai/assess";
 import type { WorldAssessment } from "@/lib/world/assess";
+import type { ClaimsAssessment } from "@/lib/claims/assess";
+import { isContradicted } from "@/lib/claims/catalog";
 import { certaintyFor, type Certainty } from "@/lib/risk/certainty";
+import {
+  classifyFinding,
+  type IntelligenceStage,
+  type ValidationMethod,
+  type ValidationStatus,
+} from "@/lib/risk/validate";
 import { safeFetch } from "@/lib/scan/safe-fetch";
 import { githubIdentity } from "@/lib/github/oauth";
 import { listContradictions } from "@/lib/integrity/contradictions";
@@ -20,6 +28,10 @@ export type DraftRisk = {
   impact: number;
   confidence: number;
   certainty?: Certainty;
+  intelligence_stage?: IntelligenceStage;
+  validation_status?: ValidationStatus;
+  validation_method?: ValidationMethod;
+  required_document?: string | null;
   why_it_matters: string;
   recommendation: string;
   owner_role: string;
@@ -49,6 +61,8 @@ export type WebsiteScan = {
   technologies: string[];
   privacyPolicyUrl: string | null;
   privacyPolicyExcerpt: string | null;
+  teamPageUrl: string | null;
+  teamFootprint: number;
   error?: string;
 };
 
@@ -197,6 +211,44 @@ async function findPrivacyPolicy(
   return null;
 }
 
+function countTeamFootprint(html: string) {
+  const linkedin = html.match(/linkedin\.com\/in\//gi)?.length ?? 0;
+  return Math.min(linkedin, 80);
+}
+
+async function findTeamFootprint(origin: string, html: string) {
+  const hrefs = [...html.matchAll(/href=["']([^"']+)["']/gi)].map((match) => match[1]!);
+  const fromHtml = hrefs.find((href) => /\/(team|about|our-team|people|leadership)/i.test(href));
+  const candidates: string[] = [];
+  if (fromHtml) {
+    try {
+      candidates.push(new URL(fromHtml, origin).toString());
+    } catch {
+      // Ignore malformed hrefs.
+    }
+  }
+  for (const path of ["/team", "/about", "/our-team", "/about-us"]) {
+    candidates.push(new URL(path, origin).toString());
+  }
+  const seen = new Set<string>();
+  let best: { url: string; count: number } | null = null;
+  const homeCount = countTeamFootprint(html);
+  if (homeCount) best = { url: origin, count: homeCount };
+  for (const url of candidates.slice(0, 3)) {
+    const key = url.replace(/\/$/, "");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const fetched = await safeFetch(url, { timeoutMs: 8000, maxBytes: 80_000 });
+    if ("error" in fetched || !fetched.response.ok) continue;
+    const text = (await fetched.response.text().catch(() => "")).slice(0, 80_000);
+    const count = countTeamFootprint(text);
+    if (count && (!best || count > best.count)) {
+      best = { url: fetched.url || url, count };
+    }
+  }
+  return best;
+}
+
 function unreachableWebsite(
   parsed: URL,
   url: string,
@@ -215,6 +267,8 @@ function unreachableWebsite(
     technologies: [],
     privacyPolicyUrl: null,
     privacyPolicyExcerpt: null,
+    teamPageUrl: null,
+    teamFootprint: 0,
     error,
   };
 }
@@ -259,6 +313,7 @@ export async function scanWebsite(website: string): Promise<WebsiteScan | null> 
       // Keep hostname origin.
     }
     const privacy = await findPrivacyPolicy(origin.endsWith("/") ? origin : `${origin}/`, html);
+    const team = await findTeamFootprint(origin.endsWith("/") ? origin : `${origin}/`, html);
 
     return {
       hostname: parsed.hostname,
@@ -272,6 +327,8 @@ export async function scanWebsite(website: string): Promise<WebsiteScan | null> 
       technologies: detectTechnologies(html, response.headers),
       privacyPolicyUrl: privacy?.url ?? null,
       privacyPolicyExcerpt: privacy?.excerpt ?? null,
+      teamPageUrl: team?.url ?? null,
+      teamFootprint: team?.count ?? countTeamFootprint(html),
     };
   } catch (error) {
     return unreachableWebsite(
@@ -500,6 +557,7 @@ export function buildRisks(input: {
   finance: FinanceAssessment | null;
   ai: AiAssessment | null;
   world: WorldAssessment | null;
+  claims?: ClaimsAssessment | null;
   country: string;
   industry: string;
 }): DraftRisk[] {
@@ -1661,6 +1719,47 @@ export function buildRisks(input: {
     });
   }
 
+  if (input.claims) {
+    for (const claim of input.claims.claims) {
+      if (!isContradicted(claim.verdict)) continue;
+      risks.push({
+        fingerprint: `claim:contradicted:${claim.id}`,
+        title: `Claim consistency gap: ${claim.title}`,
+        description: `Claim: ${claim.claim}. ${claim.conflicting.join(" ") || claim.supporting.join(" ") || claim.why}`,
+        category: claim.domain === "licence" ? "regulatory" : claim.domain === "integrity" ? "integrity" : claim.domain === "financial" ? "financial" : "operational",
+        severity: "high",
+        likelihood: 70,
+        impact: 75,
+        confidence: claim.confidence,
+        why_it_matters: `${claim.why} ${claim.decisionImpact}`,
+        recommendation:
+          claim.requiredDocument ??
+          "Resolve the claim against evidence. VERIQ will not invent fraud.",
+        owner_role: "Executive",
+        evidence: [
+          {
+            source_type: "claim",
+            source_reference: claim.id,
+            content: [
+              `Verdict: ${claim.verdict}.`,
+              ...claim.supporting.map((item) => `Supporting: ${item}`),
+              ...claim.conflicting.map((item) => `Conflicting: ${item}`),
+            ].join(" "),
+            confidence: claim.confidence,
+            trust_status: "inferred",
+          },
+        ],
+        action: claim.requiredDocument
+          ? {
+              title: claim.requiredDocument,
+              owner_role: "Executive",
+              priority: "high",
+            }
+          : undefined,
+      });
+    }
+  }
+
   if (!input.website && !input.github) {
     risks.push({
       fingerprint: "model:insufficient-evidence",
@@ -1688,10 +1787,19 @@ export function buildRisks(input: {
     });
   }
 
-  return risks.map((risk) => ({
-    ...risk,
-    certainty: certaintyFor(risk),
-  }));
+  return risks.map((risk) => {
+    const certainty = certaintyFor(risk);
+    const classified = classifyFinding({
+      category: risk.category,
+      certainty,
+      fingerprint: risk.fingerprint,
+    });
+    return {
+      ...risk,
+      certainty,
+      ...classified,
+    };
+  });
 }
 
 export function scoreFromRisks(risks: DraftRisk[]) {
@@ -1705,6 +1813,7 @@ export function scoreFromRisks(risks: DraftRisk[]) {
 
   const byCategory: Record<string, DraftRisk[]> = {};
   for (const risk of risks) {
+    if (risk.validation_status === "disproved") continue;
     byCategory[risk.category] ??= [];
     byCategory[risk.category].push(risk);
   }

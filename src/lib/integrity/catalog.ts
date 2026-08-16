@@ -121,6 +121,72 @@ export const INTEGRITY_CATALOG: IntegrityDef[] = [
       "The Anti-Corruption and Economic Crimes Act remains in force. Conflict, gifts and procurement-file artefacts stay UNKNOWN until attested. This is not an EACC finding and not a claim that anyone is corrupt.",
   },
   {
+    id: "ke-cma-licence",
+    title: "Capital Markets Authority licence lists",
+    kind: "licence",
+    jurisdictions: ["KE"],
+    industries: ["financial_services", "fintech"],
+    source: "Capital Markets Authority",
+    sourceUrl: "https://www.cma.or.ke",
+    summary:
+      "Whether this company is a CMA-licensed intermediary is UNKNOWN. VERIQ does not scrape the CMA register and will not invent a capital-markets licence.",
+  },
+  {
+    id: "ke-ira-licence",
+    title: "Insurance Regulatory Authority licence lists",
+    kind: "licence",
+    jurisdictions: ["KE"],
+    industries: ["insurance", "financial_services"],
+    source: "Insurance Regulatory Authority",
+    sourceUrl: "https://www.ira.go.ke",
+    summary:
+      "Insurance licence standing is UNKNOWN until a public IRA list is observed or the licence is uploaded. VERIQ will not invent an insurer or broker licence.",
+  },
+  {
+    id: "ke-ca-licence",
+    title: "Communications Authority licence lists",
+    kind: "licence",
+    jurisdictions: ["KE"],
+    industries: ["telecommunications"],
+    source: "Communications Authority of Kenya",
+    sourceUrl: "https://www.ca.go.ke",
+    summary:
+      "CA licence standing is UNKNOWN. A website or a phone number is not a licence.",
+  },
+  {
+    id: "ke-kra-standing",
+    title: "KRA tax registration standing",
+    kind: "registry",
+    jurisdictions: ["KE"],
+    industries: "*",
+    source: "Kenya Revenue Authority",
+    sourceUrl: "https://www.kra.go.ke",
+    summary:
+      "PIN, VAT and tax-compliance status are not public APIs VERIQ can query. Status is UNKNOWN until an authorised artefact is uploaded. Amounts stay UNKNOWN.",
+  },
+  {
+    id: "ke-nssf-nhif",
+    title: "NSSF and SHA / NHIF statutory obligations",
+    kind: "registry",
+    jurisdictions: ["KE"],
+    industries: "*",
+    source: "NSSF / SHA",
+    sourceUrl: "https://www.nssf.or.ke",
+    summary:
+      "Statutory social-security and health-cover standing is UNKNOWN. VERIQ will not invent employee headcount or contribution amounts.",
+  },
+  {
+    id: "ke-nca-licence",
+    title: "National Construction Authority registers",
+    kind: "licence",
+    jurisdictions: ["KE"],
+    industries: ["other", "energy", "public_sector"],
+    source: "National Construction Authority",
+    sourceUrl: "https://nca.go.ke",
+    summary:
+      "Contractor registration is UNKNOWN unless a public NCA record is observed or a certificate is uploaded.",
+  },
+  {
     id: "pep-sanctions-screening",
     title: "PEP and sanctions screening",
     kind: "sanctions",

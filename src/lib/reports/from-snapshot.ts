@@ -5,6 +5,8 @@ import type { AiAssessment } from "@/lib/ai/assess";
 import type { ChangeSet, ScanSnapshot } from "@/lib/changes/diff";
 import type { WorldAssessment } from "@/lib/world/assess";
 import type { IntegrityAssessment } from "@/lib/integrity/assess";
+import type { ClaimsAssessment } from "@/lib/claims/assess";
+import { buildTrustProfile, type TrustProfile } from "@/lib/truth/profile";
 import type { Exposure } from "@/lib/scan/exposure";
 import type { RegulationAssessment } from "@/lib/regulations/assess";
 import type { VendorMap } from "@/lib/vendors/assess";
@@ -30,6 +32,8 @@ type ScanSummary = {
   changes?: ChangeSet;
   world?: WorldAssessment;
   integrity?: IntegrityAssessment;
+  claims?: ClaimsAssessment;
+  trust?: TrustProfile;
   snapshot?: ScanSnapshot;
   risks?: number;
 };
@@ -70,6 +74,15 @@ export function bundleFromSnapshot(payload: ApiSnapshotPayload): ReportBundle | 
     exposure: latest.exposure ?? null,
     snapshot: latest.snapshot ?? null,
     integrity: latest.integrity ?? null,
+    claims: latest.claims ?? null,
+    trust:
+      latest.trust ??
+      buildTrustProfile({
+        risk: payload.score ?? 0,
+        claims: latest.claims ?? null,
+        integrity: latest.integrity ?? null,
+        risks: payload.findings ?? [],
+      }),
   };
 }
 
@@ -122,6 +135,12 @@ function asRisk(
     confidence: row.confidence ?? 0,
     status: (row.status as Risk["status"]) ?? "open",
     certainty: "potential",
+    validation_status: "pending",
+    intelligence_stage: "finding",
+    validation_method: "observed",
+    required_document: null,
+    validated_at: null,
+    validated_by: null,
     why_it_matters: row.why_it_matters,
     recommendation: row.recommendation ?? null,
     owner_role: row.owner_role ?? null,

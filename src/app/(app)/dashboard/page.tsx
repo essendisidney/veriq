@@ -27,6 +27,8 @@ import type { AiAssessment } from "@/lib/ai/assess";
 import type { ChangeSet } from "@/lib/changes/diff";
 import type { WorldAssessment } from "@/lib/world/assess";
 import type { IntegrityAssessment } from "@/lib/integrity/assess";
+import type { ClaimsAssessment } from "@/lib/claims/assess";
+import { buildTrustProfile, DECISION_POSTURE_LABELS, type TrustProfile } from "@/lib/truth/profile";
 import { isScanDue, parseCadence, type ScanCadence } from "@/lib/webhooks/cadence";
 import { isOverdue } from "@/lib/risk/certainty";
 
@@ -45,6 +47,8 @@ export default function DashboardPage() {
   const [changes, setChanges] = useState<ChangeSet | null>(null);
   const [world, setWorld] = useState<WorldAssessment | null>(null);
   const [integrity, setIntegrity] = useState<IntegrityAssessment | null>(null);
+  const [claims, setClaims] = useState<ClaimsAssessment | null>(null);
+  const [trust, setTrust] = useState<TrustProfile | null>(null);
   const [scanDue, setScanDue] = useState(false);
   const [cadence, setCadence] = useState<ScanCadence>("off");
   const [loading, setLoading] = useState(true);
@@ -107,6 +111,8 @@ export default function DashboardPage() {
             changes?: ChangeSet;
             world?: WorldAssessment;
             integrity?: IntegrityAssessment;
+            claims?: ClaimsAssessment;
+            trust?: TrustProfile;
           }
         | undefined;
       setExposure(summary?.exposure ?? null);
@@ -125,6 +131,16 @@ export default function DashboardPage() {
       setChanges(summary?.changes ?? null);
       setWorld(summary?.world ?? null);
       setIntegrity(summary?.integrity ?? null);
+      setClaims(summary?.claims ?? null);
+      setTrust(
+        summary?.trust ??
+          buildTrustProfile({
+            risk: (scores?.[0] as Score)?.overall ?? 0,
+            claims: summary?.claims ?? null,
+            integrity: summary?.integrity ?? null,
+            risks: (topRisks as Risk[]) ?? [],
+          }),
+      );
       const monitoringMeta = (monitoring?.metadata ?? null) as {
         cadence?: string;
         nextDueAt?: string;
@@ -223,7 +239,7 @@ export default function DashboardPage() {
         <div className="grid gap-6 xl:grid-cols-[280px_1fr]">
           <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
             <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
-              VERIQ Score
+              VERIQ Trust Profile
             </p>
             <p
               className="mt-3 font-display text-7xl leading-none"
@@ -231,7 +247,29 @@ export default function DashboardPage() {
             >
               {score.overall}
             </p>
-            <p className="mt-1 text-sm text-[var(--muted)]">/ 100</p>
+            <p className="mt-1 text-sm text-[var(--muted)]">Risk / 100</p>
+            {trust && (
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-[var(--muted)]">
+                    Evidence
+                  </p>
+                  <p className="font-display text-3xl">{trust.evidence}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-[var(--muted)]">
+                    Confidence
+                  </p>
+                  <p className="font-display text-3xl">{trust.confidence}%</p>
+                </div>
+              </div>
+            )}
+            {trust && (
+              <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
+                {DECISION_POSTURE_LABELS[trust.posture]}. A low-risk number with weak evidence
+                is not a clearance.
+              </p>
+            )}
             {delta !== null && (
               <p className="mt-3 text-sm text-[var(--muted)]">
                 {delta >= 0 ? "+" : ""}
@@ -241,6 +279,12 @@ export default function DashboardPage() {
             <p className="mt-2 text-xs text-[var(--muted)]">
               {formatDateTime(score.created_at)}
             </p>
+            <Link
+              href="/score"
+              className="mt-4 inline-block text-sm text-[var(--accent)] hover:underline"
+            >
+              Show me why
+            </Link>
             <div className="mt-6 space-y-3">
               {SCORE_DIMENSIONS.map((dim) => {
                 const value = score[dim.key];
@@ -738,6 +782,47 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   <p className="text-sm leading-6 text-[var(--muted)]">{integrity.summary}</p>
+                </div>
+              )}
+            </section>
+
+            <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="font-display text-2xl">Company truth</h2>
+                <Link
+                  href="/truth"
+                  className="text-sm text-[var(--accent)] hover:underline"
+                >
+                  Claim → evidence
+                </Link>
+              </div>
+              {!claims ? (
+                <p className="text-sm text-[var(--muted)]">
+                  Attest what the company claims, then rescan. Contradictions become findings. Unknown stays unknown.
+                </p>
+              ) : (
+                <div>
+                  <div className="mb-4 grid gap-4 sm:grid-cols-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-[var(--muted)]">
+                        Contradicted
+                      </p>
+                      <p className="mt-1 font-display text-3xl">{claims.contradicted ?? claims.conflicts}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-[var(--muted)]">
+                        Unverified
+                      </p>
+                      <p className="mt-1 font-display text-3xl">{claims.unverified}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-[var(--muted)]">
+                        Verified
+                      </p>
+                      <p className="mt-1 font-display text-3xl">{claims.verified}</p>
+                    </div>
+                  </div>
+                  <p className="text-sm leading-6 text-[var(--muted)]">{claims.summary}</p>
                 </div>
               )}
             </section>

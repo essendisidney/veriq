@@ -9,6 +9,8 @@ import type { RiskGraph } from "@/lib/graph/build";
 import type { ScenarioResult } from "@/lib/scenarios/simulate";
 import type { Exposure } from "@/lib/scan/exposure";
 import type { IntegrityAssessment } from "@/lib/integrity/assess";
+import type { ClaimsAssessment } from "@/lib/claims/assess";
+import type { TrustProfile } from "@/lib/truth/profile";
 import { SCORE_DIMENSIONS, industryLabel, countryLabel } from "@/lib/utils";
 import { isOverdue, staleDays } from "@/lib/risk/certainty";
 import { PACK_COPY, type PackKind } from "@/lib/reports/pack";
@@ -33,6 +35,8 @@ export type ReportBundle = {
   exposure: Exposure | null;
   snapshot: ScanSnapshot | null;
   integrity: IntegrityAssessment | null;
+  claims: ClaimsAssessment | null;
+  trust: TrustProfile | null;
 };
 
 export type PillarStatus = "strong" | "adequate" | "weak" | "unknown";
@@ -447,6 +451,17 @@ function collectFlags(bundle: ReportBundle, kind: PackKind): ReportFlag[] {
       href: "/finance",
     });
   }
+  const claimConflicts = bundle.claims?.conflicts ?? 0;
+  if (claimConflicts > 0) {
+    flags.push({
+      id: "flag:claim-conflicts",
+      severity: claimConflicts >= 3 ? "critical" : "high",
+      title: `${claimConflicts} claim consistency gap${claimConflicts === 1 ? "" : "s"}`,
+      detail:
+        "The story and the evidence do not agree. This is not a finding of fraud. Upload a CR12, licence or payroll artefact to resolve it.",
+      href: "/truth",
+    });
+  }
   if (bundle.ai?.systems.length && bundle.ai.attested.humanOversight !== "yes") {
     flags.push({
       id: "flag:ai-oversight",
@@ -542,6 +557,10 @@ function collectUnknowns(bundle: ReportBundle, kind: PackKind): string[] {
       .filter((item) => item.status === "unknown")
       .slice(0, 2)
       .map((item) => item.title) ?? []),
+    ...(bundle.claims?.claims
+      .filter((item) => item.verdict === "unverified")
+      .slice(0, 2)
+      .map((item) => item.title) ?? []),
     ...(bundle.ai?.unknowns.slice(0, 3) ?? ["Whether AI is used at all"]),
     "Whether the company serves the EU market",
     "Incident-notification playbook",
@@ -575,6 +594,11 @@ function collectQuestions(
       question: "Is beneficial ownership on a public register, or still UNKNOWN — and does the privacy notice name the trackers on the site?",
       why: "Shell companies and undeclared processors are found by joining public records to the company surface. VERIQ will not invent a PEP or an EACC case.",
       href: "/integrity",
+    });
+    questions.push({
+      question: "Does management’s story (headcount, licences, related parties) match evidence you can show — or is it still a claim?",
+      why: "A registered company can still be a bad counterparty. VERIQ tests the story. It will not scrape BRS or LinkedIn.",
+      href: "/truth",
     });
   } else if (kind === "credit") {
     questions.push({

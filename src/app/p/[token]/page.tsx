@@ -1,8 +1,12 @@
 import { SHARE_PREFIX } from "@/lib/api/keys";
 import { loadCompanySnapshot } from "@/lib/api/serve";
-import { reportFromSnapshot } from "@/lib/reports/from-snapshot";
+import { bundleFromSnapshot, reportFromSnapshot } from "@/lib/reports/from-snapshot";
 import { parsePackKind } from "@/lib/reports/pack";
 import { InstitutionalReportView } from "@/components/institutional-report";
+import { TrustPassport } from "@/components/trust-passport";
+import { Badge } from "@/components/ui/badge";
+import { buildPassport, PASSPORT_BAND_LABELS } from "@/lib/truth/passport";
+import { TRUST_CALL_LABELS } from "@/lib/truth/call";
 import { formatDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -43,6 +47,51 @@ export default async function PublicSharePage({
   }
   if (status !== 200) {
     return <Unavailable title="Pack not found" />;
+  }
+
+  if (body.pack === "passport") {
+    const bundle = bundleFromSnapshot(body);
+    if (!bundle || !body.company) {
+      return <Unavailable title="No scan to share" />;
+    }
+    const passport = buildPassport({
+      trust: bundle.trust,
+      claims: bundle.claims,
+      integrity: bundle.integrity,
+      websiteReachable: Boolean(bundle.exposure || bundle.snapshot?.website),
+      lastVerified: body.scanned_at ?? null,
+      critical: bundle.risks.filter((item) => item.severity === "critical").length,
+    });
+    return (
+      <div className="space-y-6">
+        <p className="text-xs text-[var(--muted)] print:hidden">
+          Read-only VERIQ Passport. Not a certificate that this company is safe, licensed or
+          creditworthy.
+        </p>
+        {bundle.trust && (
+          <TrustPassport
+            company={body.company.name}
+            assessedAt={body.scanned_at ? formatDate(body.scanned_at) : "Unknown"}
+            profile={bundle.trust}
+          />
+        )}
+        <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
+          <p className="font-display text-4xl">{TRUST_CALL_LABELS[passport.call]}</p>
+          <ul className="mt-6 space-y-3">
+            {passport.dimensions.map((item) => (
+              <li key={item.id} className="rounded-xl border border-[var(--border)] bg-[var(--elevated)] p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium">{item.label}</p>
+                  <Badge variant="muted">{PASSPORT_BAND_LABELS[item.band]}</Badge>
+                </div>
+                <p className="mt-1 text-sm text-[var(--muted)]">{item.note}</p>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-4 text-xs text-[var(--muted)]">{passport.disclaimer}</p>
+        </section>
+      </div>
+    );
   }
 
   const pack = parsePackKind(body.pack);

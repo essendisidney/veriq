@@ -36,6 +36,7 @@ export async function updateSession(request: NextRequest) {
     path.startsWith("/auth");
   const isPublic =
     path === "/" ||
+    path.startsWith("/check") ||
     isAuthRoute ||
     path.startsWith("/api/") ||
     path.startsWith("/p/");

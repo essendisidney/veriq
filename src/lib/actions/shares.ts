@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { generateShareToken } from "@/lib/api/keys";
 import type { Json } from "@/lib/database.types";
 
-export type ShareKind = "diligence" | "credit" | "restructuring";
+export type ShareKind = "diligence" | "credit" | "restructuring" | "passport";
 
 const MAX_SHARES = 8;
 const SHARE_TTL_DAYS = 14;
@@ -19,7 +19,12 @@ export async function createOrgShareLink(input: {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
-  if (input.kind !== "diligence" && input.kind !== "credit" && input.kind !== "restructuring") {
+  if (
+    input.kind !== "diligence" &&
+    input.kind !== "credit" &&
+    input.kind !== "restructuring" &&
+    input.kind !== "passport"
+  ) {
     return { error: "Invalid pack" };
   }
 
@@ -41,7 +46,9 @@ export async function createOrgShareLink(input: {
       ? "Investor pack"
       : input.kind === "credit"
         ? "Bank pack"
-        : "Counsel / IP pack");
+        : input.kind === "passport"
+          ? "VERIQ Passport"
+          : "Counsel / IP pack");
   const metadata: Json = {
     keyHash: generated.hash,
     prefix: generated.prefix,

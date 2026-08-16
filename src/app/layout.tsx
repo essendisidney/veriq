@@ -17,7 +17,7 @@ const newsreader = Newsreader({
 export const metadata: Metadata = {
   title: "VERIQ",
   description:
-    "Continuous corporate risk intelligence. See the risk before it becomes reality.",
+    "Before you trust a company, VERIQ it. Don't just verify the company. Verify the story.",
 };
 
 export default function RootLayout({

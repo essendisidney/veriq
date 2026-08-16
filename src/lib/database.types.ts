@@ -19,6 +19,14 @@ export type RiskStatus =
   | "accepted";
 
 export type Certainty = "confirmed" | "potential" | "informational";
+export type ValidationStatus =
+  | "pending"
+  | "confirmed"
+  | "disproved"
+  | "partially_confirmed"
+  | "unresolved"
+  | "insufficient_evidence";
+export type IntelligenceStage = "signal" | "finding" | "validated";
 
 export type ScanType = "initial" | "daily" | "weekly" | "event" | "on_demand";
 export type ScanStatus = "queued" | "running" | "completed" | "failed";
@@ -120,12 +128,44 @@ export type Risk = {
   confidence: number;
   status: RiskStatus;
   certainty: Certainty;
+  validation_status: ValidationStatus;
+  intelligence_stage: IntelligenceStage;
+  validation_method: string | null;
+  required_document: string | null;
+  validated_at: string | null;
+  validated_by: string | null;
   why_it_matters: string | null;
   recommendation: string | null;
   owner_role: string | null;
   fingerprint: string;
   created_at: string;
   updated_at: string;
+};
+
+export type EvidenceDocument = {
+  id: string;
+  organization_id: string;
+  risk_id: string | null;
+  kind: string;
+  filename: string;
+  mime: string | null;
+  byte_size: number;
+  sha256: string;
+  storage_path: string;
+  uploaded_by: string | null;
+  created_at: string;
+};
+
+export type ValidationEvent = {
+  id: string;
+  organization_id: string;
+  risk_id: string;
+  document_id: string | null;
+  from_status: ValidationStatus | null;
+  to_status: ValidationStatus;
+  note: string | null;
+  actor: string | null;
+  created_at: string;
 };
 
 export type Evidence = {
@@ -270,6 +310,27 @@ export type Database = {
         Update: Partial<Evidence>;
         Relationships: [];
       };
+      evidence_documents: {
+        Row: EvidenceDocument;
+        Insert: Partial<EvidenceDocument> & {
+          organization_id: string;
+          filename: string;
+          sha256: string;
+          storage_path: string;
+        };
+        Update: Partial<EvidenceDocument>;
+        Relationships: [];
+      };
+      validation_events: {
+        Row: ValidationEvent;
+        Insert: Partial<ValidationEvent> & {
+          organization_id: string;
+          risk_id: string;
+          to_status: ValidationStatus;
+        };
+        Update: Partial<ValidationEvent>;
+        Relationships: [];
+      };
       actions: {
         Row: Action;
         Insert: Partial<Action> & { organization_id: string; title: string };
@@ -353,6 +414,8 @@ export type Database = {
       action_status: ActionStatus;
       action_priority: ActionPriority;
       asset_criticality: AssetCriticality;
+      validation_status: ValidationStatus;
+      intelligence_stage: IntelligenceStage;
     };
     CompositeTypes: Record<string, never>;
   };

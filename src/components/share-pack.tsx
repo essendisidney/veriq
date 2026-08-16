@@ -52,7 +52,11 @@ export function SharePack({
             lastOpenedAt?: string;
           };
           const rowKind: ShareKind =
-            meta.kind === "credit" || meta.kind === "restructuring" ? meta.kind : "diligence";
+            meta.kind === "credit" ||
+            meta.kind === "restructuring" ||
+            meta.kind === "passport"
+              ? meta.kind
+              : "diligence";
           return {
             id: row.id,
             name: row.name,
@@ -106,13 +110,17 @@ export function SharePack({
       ? "investor"
       : kind === "credit"
         ? "bank"
-        : "counsel or insolvency practitioner";
+        : kind === "passport"
+          ? "counterparty"
+          : "counsel or insolvency practitioner";
   const closeWhen =
     kind === "restructuring" ? "when the mandate closes" : "when diligence closes";
   const extra =
-    kind === "restructuring"
-      ? " This is not a legal opinion, not an appointment recommendation, and not a statement of affairs."
-      : "";
+    kind === "passport"
+      ? " This is a living evidence picture, not a certificate that the company is safe."
+      : kind === "restructuring"
+        ? " This is not a legal opinion, not an appointment recommendation, and not a statement of affairs."
+        : "";
 
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 print:hidden">

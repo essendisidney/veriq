@@ -12,6 +12,7 @@ export const DOMAIN_KINDS = [
   "ai",
   "resilience",
   "integrity",
+  "procurement",
 ] as const;
 
 export type DomainKind = (typeof DOMAIN_KINDS)[number];
@@ -84,6 +85,12 @@ const META: Record<
     audience: "Compliance, counsel, banks and public institutions",
     disclaimer:
       "Public registers VERIQ cannot query stay UNKNOWN. This is not an EACC finding, not a PEP hit, and not a claim that anyone is corrupt.",
+  },
+  procurement: {
+    title: "Procurement risk report",
+    audience: "Procurement, evaluation committees and contracting authorities",
+    disclaimer:
+      "This is not a bid evaluation, PPRA finding or award recommendation. Related parties and capacity stay UNKNOWN without a CR12 and authorised artefacts.",
   },
 };
 
@@ -408,7 +415,61 @@ const builders: Record<DomainKind, (bundle: ReportBundle) => Built> = {
         .map((item) => item.title),
     };
   },
+  procurement: (bundle) => {
+    const findings = bundle.risks.filter(
+      (item) =>
+        item.fingerprint.startsWith("claim:") ||
+        item.fingerprint.startsWith("contradiction:") ||
+        item.fingerprint.startsWith("reg:missing-evidence:KE-PPADA") ||
+        item.fingerprint.startsWith("reg:missing-evidence:KE-BO") ||
+        item.fingerprint.startsWith("reg:missing-evidence:KE-NCA") ||
+        item.category === "integrity" ||
+        item.category === "legal",
+    );
+    const claims = bundle.claims?.claims ?? [];
+    const band = bandFromClaims(bundle);
+    return {
+      score: bundle.score!.reputation,
+      scoreLabel: "Procurement risk (reputation lens)",
+      summary:
+        bundle.claims?.summary ??
+        "Capacity, ownership and related parties stay UNKNOWN until a CR12, licences and past-performance artefacts are in the vault. This is not an award recommendation.",
+      metrics: [
+        { label: "Contradicted", value: String(bundle.claims?.contradicted ?? bundle.claims?.conflicts ?? 0) },
+        { label: "Unverified claims", value: String(bundle.claims?.unverified ?? 0) },
+        { label: "Verified claims", value: String(bundle.claims?.verified ?? 0) },
+        { label: "Signals (not facts)", value: String(bundle.claims?.signals ?? 0) },
+        { label: "Unknown registers", value: String(bundle.integrity?.unknown ?? 0) },
+        { label: "Indicative band", value: band },
+      ],
+      flags: findingFlags(findings, () => true),
+      table: {
+        title: "Claim consistency",
+        columns: ["Claim", "Verdict", "Why"],
+        records: claims.slice(0, 12).map((item) => [item.title, item.verdict, item.why]),
+      },
+      unknowns: [
+        "Beneficial owners (CR12 not observed)",
+        "Related-party suppliers",
+        "Tax / KRA status",
+        "Construction licence (NCA) where relevant",
+        "Past performance on public contracts",
+        ...claims.filter((item) => item.verdict === "unverified").slice(0, 3).map((item) => item.title),
+      ],
+    };
+  },
 };
+
+function bandFromClaims(bundle: ReportBundle): string {
+  const contradicted = bundle.claims?.contradicted ?? bundle.claims?.conflicts ?? 0;
+  const critical = bundle.risks.filter((item) => item.severity === "critical").length;
+  if (critical > 0 || contradicted >= 3) return "CRITICAL — validation required";
+  if (contradicted > 0) return "HIGH — contradicted claims";
+  if ((bundle.claims?.unverified ?? 0) > 2 || (bundle.integrity?.unknown ?? 0) > 4) {
+    return "MEDIUM — evidence incomplete";
+  }
+  return "LOW — observed surface only; not a clearance";
+}
 
 function findingFlags(
   risks: ReportBundle["risks"],
