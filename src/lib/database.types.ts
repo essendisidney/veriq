@@ -391,6 +391,10 @@ export type Database = {
         };
         Returns: string;
       };
+      delete_organization: {
+        Args: { p_org_id: string };
+        Returns: undefined;
+      };
       is_org_member: {
         Args: { org_id: string };
         Returns: boolean;

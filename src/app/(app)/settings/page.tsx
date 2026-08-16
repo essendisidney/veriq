@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { COUNTRIES, INDUSTRIES } from "@/lib/utils";
+import { ORG_STORAGE_KEY } from "@/components/workspace/workspace-provider";
 
 const GITHUB_FLASH: Record<string, string> = {
   connected: "GitHub connected. A scan ran with a short-lived token that was not stored.",
@@ -29,6 +30,8 @@ export default function SettingsPage() {
   const [country, setCountry] = useState(currentOrg?.country ?? "KE");
   const [industry, setIndustry] = useState(currentOrg?.industry ?? "technology");
   const [saving, setSaving] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [confirmName, setConfirmName] = useState("");
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -61,6 +64,28 @@ export default function SettingsPage() {
     const supabase = createClient();
     await supabase.auth.signOut();
     router.push("/login");
+    router.refresh();
+  }
+
+  async function removeCompany() {
+    if (!currentOrg) return;
+    if (confirmName.trim() !== currentOrg.name) {
+      setMessage("Type the company name exactly to remove it.");
+      return;
+    }
+    setRemoving(true);
+    setMessage(null);
+    const supabase = createClient();
+    const { error } = await supabase.rpc("delete_organization", {
+      p_org_id: currentOrg.id,
+    });
+    setRemoving(false);
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+    localStorage.removeItem(ORG_STORAGE_KEY);
+    router.push("/dashboard");
     router.refresh();
   }
 
@@ -147,7 +172,7 @@ export default function SettingsPage() {
           </Button>
         </div>
       </form>
-      <p className="mt-6 text-sm text-[var(--muted)]">
+      <p className="mt-6 max-w-lg text-sm text-[var(--muted)]">
         Banks and investors query this company through the{" "}
         <a href="/developers" className="text-[var(--accent)] hover:underline">
           VERIQ API
@@ -158,6 +183,37 @@ export default function SettingsPage() {
         </a>
         .
       </p>
+
+      <section className="mt-10 max-w-lg rounded-2xl border border-[var(--critical)]/40 bg-[var(--surface)] p-6">
+        <p className="eyebrow" style={{ color: "var(--critical)" }}>
+          Remove company
+        </p>
+        <h2 className="mt-3 font-display text-2xl italic text-[var(--ink)]">
+          Delete {currentOrg.name} from this workspace
+        </h2>
+        <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
+          This removes the company model, scans, findings and evidence. It does not
+          change the real company. Type the name to confirm.
+        </p>
+        <Label htmlFor="confirmName" className="mt-5">
+          Type {currentOrg.name}
+        </Label>
+        <Input
+          id="confirmName"
+          value={confirmName}
+          onChange={(e) => setConfirmName(e.target.value)}
+          placeholder={currentOrg.name}
+        />
+        <Button
+          type="button"
+          variant="danger"
+          className="mt-4"
+          disabled={removing || confirmName.trim() !== currentOrg.name}
+          onClick={() => void removeCompany()}
+        >
+          {removing ? "Removing…" : "Remove this company"}
+        </Button>
+      </section>
     </div>
   );
 }
