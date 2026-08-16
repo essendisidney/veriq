@@ -100,11 +100,11 @@ export function extractObservedClaims(input: {
       : null;
   const websiteEmployeeText = employeeMatch?.[0] ?? teamMatch?.[0] ?? null;
   const licensedLanguage =
-    /licensed by|regulated by|cbk[- ]licensed|cma[- ]licensed|ira[- ]licensed|payment service provider/i.test(
+    /licensed by|regulated by|cbk[- ]licensed|cma[- ]licensed|ira[- ]licensed|payment service provider|authorised dealer|authorized dealer|nse listed|data controller/i.test(
       html,
     );
   const africaLanguage =
-    /across africa|pan-african|east africa and|50 countries|operating in africa/i.test(
+    /across africa|pan-?african|east africa|west africa|operating in africa|offices in kenya|nairobi and|kenya, uganda|presence in \d+ countries/i.test(
       html,
     );
   const revenueLanguage =

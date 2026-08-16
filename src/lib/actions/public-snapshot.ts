@@ -44,13 +44,13 @@ export async function publicCompanySnapshot(query: string): Promise<
   }
 
   const detected = detectVendors({
-    html: scanned.html,
+    html: `${scanned.html}\n${scanned.storyHtml}`,
     headers: scanned.responseHeaders,
     technologies: scanned.technologies,
   });
   const vendors = assessVendors({ detected, declared: [] });
   const observed = extractObservedClaims({
-    html: scanned.html,
+    html: scanned.storyText || scanned.html,
     teamFootprint: scanned.teamFootprint,
     teamPageUrl: scanned.teamPageUrl,
     vendors,

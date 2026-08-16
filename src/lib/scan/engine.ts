@@ -17,6 +17,7 @@ import {
 import { safeFetch } from "@/lib/scan/safe-fetch";
 import { githubIdentity } from "@/lib/github/oauth";
 import { listContradictions } from "@/lib/integrity/contradictions";
+import { crawlStory, stripToText, type StoryPage } from "@/lib/scan/story";
 
 export type DraftRisk = {
   fingerprint: string;
@@ -58,6 +59,9 @@ export type WebsiteScan = {
   securityHeaders: Record<string, string | null>;
   responseHeaders: Record<string, string | null>;
   html: string;
+  storyHtml: string;
+  storyText: string;
+  storyPages: StoryPage[];
   technologies: string[];
   privacyPolicyUrl: string | null;
   privacyPolicyExcerpt: string | null;
@@ -80,6 +84,9 @@ export type GithubRepoScan = {
   sensitiveFiles: string[];
   hasGitignore: boolean;
   hasPackageJson: boolean;
+  hasSecurityPolicy: boolean;
+  hasDependabot: boolean;
+  fileCount: number;
   packages: string[];
 };
 
@@ -104,7 +111,11 @@ const HEADER_KEYS = [
   "permissions-policy",
 ] as const;
 
-const SENSITIVE_PATHS = [".env", "credentials.json"];
+const SENSITIVE_FILE =
+  /(^|\/)(\.env(?:$|\.[A-Za-z0-9._-]+$)|credentials\.json$|service-account\.json$|id_rsa$|\.aws\/credentials$|secrets\.ya?ml$|wp-config\.php$)/i;
+const GOVERNANCE_SECURITY = /(^|\/)(\.github\/)?security\.md$/i;
+const GOVERNANCE_DEPENDABOT = /(^|\/)\.github\/dependabot\.ya?ml$/i;
+const GOVERNANCE_GITIGNORE = /(^|\/)\.gitignore$/i;
 const GITHUB_HEADERS = {
   accept: "application/vnd.github+json",
   "user-agent": "VERIQ-Scan/0.1",
@@ -216,39 +227,6 @@ function countTeamFootprint(html: string) {
   return Math.min(linkedin, 80);
 }
 
-async function findTeamFootprint(origin: string, html: string) {
-  const hrefs = [...html.matchAll(/href=["']([^"']+)["']/gi)].map((match) => match[1]!);
-  const fromHtml = hrefs.find((href) => /\/(team|about|our-team|people|leadership)/i.test(href));
-  const candidates: string[] = [];
-  if (fromHtml) {
-    try {
-      candidates.push(new URL(fromHtml, origin).toString());
-    } catch {
-      // Ignore malformed hrefs.
-    }
-  }
-  for (const path of ["/team", "/about", "/our-team", "/about-us"]) {
-    candidates.push(new URL(path, origin).toString());
-  }
-  const seen = new Set<string>();
-  let best: { url: string; count: number } | null = null;
-  const homeCount = countTeamFootprint(html);
-  if (homeCount) best = { url: origin, count: homeCount };
-  for (const url of candidates.slice(0, 3)) {
-    const key = url.replace(/\/$/, "");
-    if (seen.has(key)) continue;
-    seen.add(key);
-    const fetched = await safeFetch(url, { timeoutMs: 8000, maxBytes: 80_000 });
-    if ("error" in fetched || !fetched.response.ok) continue;
-    const text = (await fetched.response.text().catch(() => "")).slice(0, 80_000);
-    const count = countTeamFootprint(text);
-    if (count && (!best || count > best.count)) {
-      best = { url: fetched.url || url, count };
-    }
-  }
-  return best;
-}
-
 function unreachableWebsite(
   parsed: URL,
   url: string,
@@ -264,6 +242,9 @@ function unreachableWebsite(
     securityHeaders: {},
     responseHeaders: {},
     html: "",
+    storyHtml: "",
+    storyText: "",
+    storyPages: [],
     technologies: [],
     privacyPolicyUrl: null,
     privacyPolicyExcerpt: null,
@@ -312,8 +293,18 @@ export async function scanWebsite(website: string): Promise<WebsiteScan | null> 
     } catch {
       // Keep hostname origin.
     }
-    const privacy = await findPrivacyPolicy(origin.endsWith("/") ? origin : `${origin}/`, html);
-    const team = await findTeamFootprint(origin.endsWith("/") ? origin : `${origin}/`, html);
+    const story = await crawlStory(origin.endsWith("/") ? origin : `${origin}/`, html);
+    let privacyUrl = story.privacyUrl;
+    let privacyExcerpt = story.privacyExcerpt;
+    if (!privacyUrl) {
+      const privacy = await findPrivacyPolicy(
+        origin.endsWith("/") ? origin : `${origin}/`,
+        html,
+      );
+      privacyUrl = privacy?.url ?? null;
+      privacyExcerpt = privacy?.excerpt ?? null;
+    }
+    const homeText = stripToText(html).slice(0, 12_000);
 
     return {
       hostname: parsed.hostname,
@@ -324,11 +315,14 @@ export async function scanWebsite(website: string): Promise<WebsiteScan | null> 
       securityHeaders,
       responseHeaders,
       html,
-      technologies: detectTechnologies(html, response.headers),
-      privacyPolicyUrl: privacy?.url ?? null,
-      privacyPolicyExcerpt: privacy?.excerpt ?? null,
-      teamPageUrl: team?.url ?? null,
-      teamFootprint: team?.count ?? countTeamFootprint(html),
+      storyHtml: story.html,
+      storyText: [homeText, story.text].filter(Boolean).join("\n").slice(0, 60_000),
+      storyPages: story.pages,
+      technologies: detectTechnologies(`${html}\n${story.html}`, response.headers),
+      privacyPolicyUrl: privacyUrl,
+      privacyPolicyExcerpt: privacyExcerpt,
+      teamPageUrl: story.teamPageUrl,
+      teamFootprint: Math.max(story.teamFootprint, countTeamFootprint(html)),
     };
   } catch (error) {
     return unreachableWebsite(
@@ -402,6 +396,92 @@ async function githubExists(fullName: string, filePath: string, token?: string) 
   return response?.status === 200;
 }
 
+type GithubTree = {
+  truncated?: boolean;
+  tree?: { path: string; type: string }[];
+};
+
+async function inspectGithubRepo(
+  repo: GithubRepo,
+  token?: string,
+): Promise<GithubRepoScan> {
+  const branch = repo.default_branch || "HEAD";
+  const tree = await githubJson<GithubTree>(
+    `/repos/${repo.full_name}/git/trees/${encodeURIComponent(branch)}?recursive=1`,
+    token,
+  );
+  const paths = (tree?.tree ?? [])
+    .filter((item) => item.type === "blob" && item.path)
+    .map((item) => item.path);
+
+  let sensitiveFiles = [...new Set(paths.filter((path) => SENSITIVE_FILE.test(path)))].slice(
+    0,
+    8,
+  );
+  let hasGitignore = paths.some((path) => GOVERNANCE_GITIGNORE.test(path));
+  let hasPackageJson = paths.some((path) => /(^|\/)package\.json$/.test(path));
+  const hasSecurityPolicy = paths.some((path) => GOVERNANCE_SECURITY.test(path));
+  const hasDependabot = paths.some((path) => GOVERNANCE_DEPENDABOT.test(path));
+
+  if (!tree) {
+    const [envHit, credHit, gitignoreHit, pkg] = await Promise.all([
+      githubExists(repo.full_name, ".env", token),
+      githubExists(repo.full_name, "credentials.json", token),
+      githubExists(repo.full_name, ".gitignore", token),
+      githubPackageNames(repo.full_name, token),
+    ]);
+    sensitiveFiles = [
+      ...(envHit ? [".env"] : []),
+      ...(credHit ? ["credentials.json"] : []),
+    ];
+    hasGitignore = gitignoreHit;
+    hasPackageJson = pkg.exists;
+    return {
+      id: repo.id,
+      name: repo.name,
+      fullName: repo.full_name,
+      url: repo.html_url,
+      visibility: repo.private ? "private" : "public",
+      defaultBranch: repo.default_branch,
+      language: repo.language,
+      description: repo.description,
+      stars: repo.stargazers_count,
+      hasLicense: Boolean(repo.license),
+      sensitiveFiles,
+      hasGitignore,
+      hasPackageJson,
+      hasSecurityPolicy: false,
+      hasDependabot: false,
+      fileCount: 0,
+      packages: pkg.names,
+    };
+  }
+
+  const pkg = hasPackageJson
+    ? await githubPackageNames(repo.full_name, token)
+    : { exists: false, names: [] };
+
+  return {
+    id: repo.id,
+    name: repo.name,
+    fullName: repo.full_name,
+    url: repo.html_url,
+    visibility: repo.private ? "private" : "public",
+    defaultBranch: repo.default_branch,
+    language: repo.language,
+    description: repo.description,
+    stars: repo.stargazers_count,
+    hasLicense: Boolean(repo.license),
+    sensitiveFiles,
+    hasGitignore,
+    hasPackageJson: pkg.exists || hasPackageJson,
+    hasSecurityPolicy,
+    hasDependabot,
+    fileCount: paths.length,
+    packages: pkg.names,
+  };
+}
+
 type GithubUser = {
   login: string;
   type: "User" | "Organization";
@@ -463,44 +543,15 @@ export async function scanGithub(
         )
       : [];
 
-  const perPage = token ? 30 : 8;
-  const scanLimit = token ? 16 : 5;
+  const perPage = token ? 30 : 12;
+  const scanLimit = token ? 16 : 8;
   const repos = await listGithubRepos(handle, user.type, token, perPage);
 
   const unique = new Map<number, GithubRepo>();
   for (const repo of repos) unique.set(repo.id, repo);
 
   const scanned = await Promise.all(
-    [...unique.values()].slice(0, scanLimit).map(async (repo) => {
-      const [sensitiveHits, hasGitignore, pkg] = await Promise.all([
-        Promise.all(
-          SENSITIVE_PATHS.map(async (file) =>
-            (await githubExists(repo.full_name, file, token)) ? file : null,
-          ),
-        ),
-        githubExists(repo.full_name, ".gitignore", token),
-        githubPackageNames(repo.full_name, token),
-      ]);
-
-      return {
-        id: repo.id,
-        name: repo.name,
-        fullName: repo.full_name,
-        url: repo.html_url,
-        visibility: repo.private ? "private" : "public",
-        defaultBranch: repo.default_branch,
-        language: repo.language,
-        description: repo.description,
-        stars: repo.stargazers_count,
-        hasLicense: Boolean(repo.license),
-        sensitiveFiles: sensitiveHits.filter((file): file is string =>
-          Boolean(file),
-        ),
-        hasGitignore,
-        hasPackageJson: pkg.exists,
-        packages: pkg.names,
-      };
-    }),
+    [...unique.values()].slice(0, scanLimit).map((repo) => inspectGithubRepo(repo, token)),
   );
 
   return {
@@ -661,6 +712,33 @@ export function buildRisks(input: {
             owner_role: "Engineering",
             priority: "medium",
           },
+        });
+      }
+
+      if (input.website.reachable && input.website.storyPages.length === 0) {
+        risks.push({
+          fingerprint: `web:story-thin:${input.website.hostname}`,
+          title: "Public story is thin — only the homepage was readable",
+          description: `${input.website.hostname} did not expose about, team, legal, careers or Kenya pages that VERIQ could fetch.`,
+          category: "integrity",
+          severity: "low",
+          likelihood: 45,
+          impact: 40,
+          confidence: 78,
+          why_it_matters:
+            "A one-page site is a weak company story. Headcount, licence and Africa-presence claims stay UNKNOWN without inner pages or an authorised extract.",
+          recommendation:
+            "Publish an about, contact and privacy page, or upload the artefacts that would prove the claims.",
+          owner_role: "Communications",
+          evidence: [
+            {
+              source_type: "website",
+              source_reference: input.website.url,
+              content: "Homepage fetched. No additional same-origin story pages returned 200.",
+              confidence: 78,
+              trust_status: "observed",
+            },
+          ],
         });
       }
     }
@@ -922,6 +1000,34 @@ export function buildRisks(input: {
               source_reference: input.github.login,
               content: `Related organisations: ${input.github.relatedOrgs.join(", ")}. Token used once and discarded.`,
               confidence: 86,
+              trust_status: "observed",
+            },
+          ],
+        });
+      }
+
+      const withoutSecurity = input.github.repos.filter((r) => !r.hasSecurityPolicy);
+      if (input.github.repos.length >= 3 && withoutSecurity.length === input.github.repos.length) {
+        risks.push({
+          fingerprint: `github:security-md:${input.github.login}`,
+          title: "No SECURITY.md observed in scanned repositories",
+          description: `${input.github.repos.length} repositories were tree-inspected. None published a security policy.`,
+          category: "cybersecurity",
+          severity: "low",
+          likelihood: 40,
+          impact: 35,
+          confidence: 82,
+          why_it_matters:
+            "A public security policy is how researchers report a leak. Its absence is an observed control gap, not proof that nothing is wrong.",
+          recommendation:
+            "Add SECURITY.md (or GitHub’s security policy) to the primary organisation repositories.",
+          owner_role: "Engineering",
+          evidence: [
+            {
+              source_type: "github",
+              source_reference: `https://github.com/${input.github.login}`,
+              content: "Recursive git trees were listed. SECURITY.md was not among observed blobs.",
+              confidence: 82,
               trust_status: "observed",
             },
           ],

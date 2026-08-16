@@ -259,7 +259,7 @@ export async function runOrganizationScan(
     });
 
     const detected = detectVendors({
-      html: website?.html,
+      html: `${website?.html ?? ""}\n${website?.storyHtml ?? ""}`,
       headers: website?.responseHeaders,
       technologies: website?.technologies,
       packages: github?.packages,
@@ -284,7 +284,7 @@ export async function runOrganizationScan(
     });
     const ai = assessAi({
       detected: detectAi({
-        html: website?.html,
+        html: `${website?.html ?? ""}\n${website?.storyHtml ?? ""}\n${website?.storyText ?? ""}`,
         packages: github?.packages,
         vendors: vendorMap,
       }),
@@ -292,13 +292,17 @@ export async function runOrganizationScan(
       attested: parseAttestedAi(aiGovernance?.metadata),
     });
     const observedClaims = extractObservedClaims({
-      html: website?.html,
+      html: website?.storyText || website?.html,
       teamFootprint: website?.teamFootprint,
       teamPageUrl: website?.teamPageUrl,
       githubPublicRepos: github?.publicRepos ?? github?.repos.length ?? 0,
       vendors: vendorMap,
     });
-    if (website) website.html = "";
+    if (website) {
+      website.html = "";
+      website.storyHtml = "";
+      website.storyText = "";
+    }
 
     const { data: financeAsset } = await supabase
       .from("assets")
@@ -734,6 +738,16 @@ export async function runOrganizationScan(
           exposure: exposureJoined,
           snapshot,
           changes,
+          coverage: {
+            pages: website?.storyPages ?? [],
+            pageCount: (website?.reachable ? 1 : 0) + (website?.storyPages.length ?? 0),
+            reposInspected: github?.repos.length ?? 0,
+            publicRepos: github?.publicRepos ?? 0,
+            filesInspected: (github?.repos ?? []).reduce(
+              (sum, repo) => sum + (repo.fileCount ?? 0),
+              0,
+            ),
+          },
         },
       })
       .eq("id", scan.id);

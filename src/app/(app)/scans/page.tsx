@@ -33,7 +33,7 @@ export default function ScansPage() {
     <div>
       <PageHeader
         title="Scans"
-        description="Each scan snapshots the company model and compares evidence over time."
+        description="Each scan reads the public story (about, team, legal, Kenya pages) and lists GitHub trees — then snapshots what changed."
         actions={
           currentOrg ? (
             <ScanButton organizationId={currentOrg.id} label="Run scan" />
@@ -53,6 +53,11 @@ export default function ScansPage() {
               overall?: number;
               risks?: number;
               repos?: number;
+              coverage?: {
+                pageCount?: number;
+                reposInspected?: number;
+                filesInspected?: number;
+              };
               changes?: { summary?: string; added?: number; removed?: number };
             };
             return (
@@ -71,6 +76,17 @@ export default function ScansPage() {
                       : ""}
                     {typeof summary.risks === "number"
                       ? ` · ${summary.risks} risks`
+                      : ""}
+                    {typeof summary.coverage?.pageCount === "number"
+                      ? ` · ${summary.coverage.pageCount} page${summary.coverage.pageCount === 1 ? "" : "s"}`
+                      : ""}
+                    {typeof summary.coverage?.reposInspected === "number" &&
+                    summary.coverage.reposInspected > 0
+                      ? ` · ${summary.coverage.reposInspected} repo${summary.coverage.reposInspected === 1 ? "" : "s"}`
+                      : ""}
+                    {typeof summary.coverage?.filesInspected === "number" &&
+                    summary.coverage.filesInspected > 0
+                      ? ` · ${summary.coverage.filesInspected} files listed`
                       : ""}
                     {summary.changes?.summary
                       ? ` · ${summary.changes.summary}`
