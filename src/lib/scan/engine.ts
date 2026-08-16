@@ -168,60 +168,6 @@ function detectTechnologies(html: string, headers: Headers) {
   return [...tech];
 }
 
-const PRIVACY_PATHS = [
-  "/privacy",
-  "/privacy-policy",
-  "/legal/privacy",
-  "/legal/privacy-policy",
-];
-
-async function findPrivacyPolicy(
-  origin: string,
-  html: string,
-): Promise<{ url: string; excerpt: string } | null> {
-  const hrefs = [...html.matchAll(/href=["']([^"']+)["']/gi)].map(
-    (match) => match[1]!,
-  );
-  const fromHtml = hrefs.find(
-    (href) =>
-      /privacy/i.test(href) &&
-      !/privacy-policy-generator|privacypolicytemplate/i.test(href),
-  );
-  const candidates: string[] = [];
-  if (fromHtml) {
-    try {
-      candidates.push(new URL(fromHtml, origin).toString());
-    } catch {
-      // Ignore malformed hrefs.
-    }
-  }
-  for (const path of PRIVACY_PATHS) {
-    candidates.push(new URL(path, origin).toString());
-  }
-
-  const seen = new Set<string>();
-  for (const url of candidates.slice(0, 4)) {
-    const key = url.replace(/\/$/, "");
-    if (seen.has(key)) continue;
-    seen.add(key);
-    const fetched = await safeFetch(url, { timeoutMs: 8000, maxBytes: 80_000 });
-    if ("error" in fetched) continue;
-    if (!fetched.response.ok) continue;
-    const text = (await fetched.response.text().catch(() => "")).slice(0, 20_000);
-    if (!/privacy|personal data|data protection|cookie/i.test(text)) continue;
-    const excerpt = text
-      .replace(/<script[\s\S]*?<\/script>/gi, " ")
-      .replace(/<style[\s\S]*?<\/style>/gi, " ")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 4000);
-    if (!excerpt) continue;
-    return { url: fetched.url || url, excerpt };
-  }
-  return null;
-}
-
 function countTeamFootprint(html: string) {
   const linkedin = html.match(/linkedin\.com\/in\//gi)?.length ?? 0;
   return Math.min(linkedin, 80);
@@ -260,7 +206,7 @@ export async function scanWebsite(website: string): Promise<WebsiteScan | null> 
 
   const url = parsed.toString();
   const https = parsed.protocol === "https:";
-  const fetched = await safeFetch(url, { timeoutMs: 12000, maxBytes: 500_000 });
+  const fetched = await safeFetch(url, { timeoutMs: 4500, maxBytes: 120_000 });
   if ("error" in fetched) {
     return unreachableWebsite(parsed, url, https, fetched.error);
   }
@@ -294,16 +240,6 @@ export async function scanWebsite(website: string): Promise<WebsiteScan | null> 
       // Keep hostname origin.
     }
     const story = await crawlStory(origin.endsWith("/") ? origin : `${origin}/`, html);
-    let privacyUrl = story.privacyUrl;
-    let privacyExcerpt = story.privacyExcerpt;
-    if (!privacyUrl) {
-      const privacy = await findPrivacyPolicy(
-        origin.endsWith("/") ? origin : `${origin}/`,
-        html,
-      );
-      privacyUrl = privacy?.url ?? null;
-      privacyExcerpt = privacy?.excerpt ?? null;
-    }
     const homeText = stripToText(html).slice(0, 12_000);
 
     return {
@@ -319,8 +255,8 @@ export async function scanWebsite(website: string): Promise<WebsiteScan | null> 
       storyText: [homeText, story.text].filter(Boolean).join("\n").slice(0, 60_000),
       storyPages: story.pages,
       technologies: detectTechnologies(`${html}\n${story.html}`, response.headers),
-      privacyPolicyUrl: privacyUrl,
-      privacyPolicyExcerpt: privacyExcerpt,
+      privacyPolicyUrl: story.privacyUrl,
+      privacyPolicyExcerpt: story.privacyExcerpt,
       teamPageUrl: story.teamPageUrl,
       teamFootprint: Math.max(story.teamFootprint, countTeamFootprint(html)),
     };
@@ -339,7 +275,7 @@ async function githubFetch(
   opts?: { accept?: string; token?: string },
 ) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000);
+  const timeout = setTimeout(() => controller.abort(), 5000);
   try {
     return await fetch(`https://api.github.com${path}`, {
       headers: {
@@ -405,6 +341,36 @@ async function inspectGithubRepo(
   repo: GithubRepo,
   token?: string,
 ): Promise<GithubRepoScan> {
+  if (!token) {
+    const [envHit, credHit, gitignoreHit] = await Promise.all([
+      githubExists(repo.full_name, ".env"),
+      githubExists(repo.full_name, "credentials.json"),
+      githubExists(repo.full_name, ".gitignore"),
+    ]);
+    return {
+      id: repo.id,
+      name: repo.name,
+      fullName: repo.full_name,
+      url: repo.html_url,
+      visibility: repo.private ? "private" : "public",
+      defaultBranch: repo.default_branch,
+      language: repo.language,
+      description: repo.description,
+      stars: repo.stargazers_count,
+      hasLicense: Boolean(repo.license),
+      sensitiveFiles: [
+        ...(envHit ? [".env"] : []),
+        ...(credHit ? ["credentials.json"] : []),
+      ],
+      hasGitignore: gitignoreHit,
+      hasPackageJson: false,
+      hasSecurityPolicy: false,
+      hasDependabot: false,
+      fileCount: 0,
+      packages: [],
+    };
+  }
+
   const branch = repo.default_branch || "HEAD";
   const tree = await githubJson<GithubTree>(
     `/repos/${repo.full_name}/git/trees/${encodeURIComponent(branch)}?recursive=1`,
@@ -543,8 +509,8 @@ export async function scanGithub(
         )
       : [];
 
-  const perPage = token ? 30 : 12;
-  const scanLimit = token ? 16 : 8;
+  const perPage = token ? 20 : 6;
+  const scanLimit = token ? 8 : 2;
   const repos = await listGithubRepos(handle, user.type, token, perPage);
 
   const unique = new Map<number, GithubRepo>();

@@ -76,13 +76,13 @@ async function resolveSafe<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
 }
 
 async function exists(url: string) {
-  return safeFetchOk(url, 6000);
+  return safeFetchOk(url, 3500);
 }
 
 async function httpRedirectsToHttps(hostname: string) {
   const result = await safeFetch(`http://${hostname}/`, {
     method: "GET",
-    timeoutMs: 6000,
+    timeoutMs: 3500,
   });
   if ("error" in result) return null;
   const location = result.response.headers.get("location") ?? "";
@@ -146,7 +146,7 @@ async function publicHostnames(hostname: string) {
   const root = registrableDomain(hostname);
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
+    const timeout = setTimeout(() => controller.abort(), 3000);
     const response = await fetch(
       `https://crt.sh/?q=${encodeURIComponent(root)}&output=json`,
       { signal: controller.signal, headers: { "user-agent": UA } },

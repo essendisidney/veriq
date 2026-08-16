@@ -12,6 +12,7 @@ import { ScanButton } from "@/components/scan-button";
 import { SCORE_DIMENSIONS, scoreTone } from "@/lib/utils";
 import type { Risk, Score } from "@/lib/database.types";
 import { explainScore, STAGE_LABELS, VALIDATION_LABELS } from "@/lib/risk/validate";
+import { MissingEvidencePanel } from "@/components/missing-evidence";
 import { buildTrustProfile, DECISION_POSTURE_LABELS, type TrustProfile } from "@/lib/truth/profile";
 import type { ClaimsAssessment } from "@/lib/claims/assess";
 import type { IntegrityAssessment } from "@/lib/integrity/assess";
@@ -55,15 +56,14 @@ export default function ScorePage() {
       setScore(nextScore);
       setRisks(nextRisks);
       setTrust(
-        summary?.trust ??
-          (nextScore
-            ? buildTrustProfile({
-                risk: nextScore.overall,
-                claims: summary?.claims ?? null,
-                integrity: summary?.integrity ?? null,
-                risks: nextRisks,
-              })
-            : null),
+        nextScore
+          ? buildTrustProfile({
+              risk: nextScore.overall,
+              claims: summary?.claims ?? null,
+              integrity: summary?.integrity ?? null,
+              risks: nextRisks,
+            })
+          : null,
       );
       setLoaded(true);
     }
@@ -119,6 +119,11 @@ export default function ScorePage() {
                 </p>
                 <p className="mt-1 text-sm leading-6 text-[var(--muted)]">{trust.disclaimer}</p>
               </>
+            )}
+            {trust && trust.missing.length > 0 && (
+              <div className="mt-6">
+                <MissingEvidencePanel items={trust.missing} />
+              </div>
             )}
             <div className="mt-6 grid gap-4 sm:grid-cols-4">
               <Stat label="Findings" value={String(explained.counts.findings)} />

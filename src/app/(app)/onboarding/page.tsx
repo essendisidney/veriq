@@ -24,12 +24,12 @@ export default function OnboardingPage() {
   const [industry, setIndustry] = useState("fintech");
   const [githubLogin, setGithubLogin] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<"idle" | "find" | "scan">("idle");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    setLoading(true);
+    setLoading(website.trim() ? "scan" : "find");
 
     const supabase = createClient();
     const slug = `${slugify(name)}-${Math.random().toString(36).slice(2, 6)}`;
@@ -40,7 +40,7 @@ export default function OnboardingPage() {
       const resolved = await resolveCompanyIdentityAction(name);
       if ("error" in resolved) {
         setError(resolved.error);
-        setLoading(false);
+        setLoading("idle");
         return;
       }
       websiteUrl = resolved.identity.website;
@@ -48,7 +48,7 @@ export default function OnboardingPage() {
     }
 
     const { data, error: rpcError } = await supabase.rpc("create_organization", {
-      p_name: name,
+      p_name: name.trim(),
       p_slug: slug,
       p_website: websiteUrl || null,
       p_country: country,
@@ -58,10 +58,11 @@ export default function OnboardingPage() {
 
     if (rpcError || !data) {
       setError(rpcError?.message ?? "Could not create company");
-      setLoading(false);
+      setLoading("idle");
       return;
     }
 
+    setLoading("scan");
     await runOrganizationScan(data);
     localStorage.setItem(ORG_STORAGE_KEY, data);
     router.push("/dashboard");
@@ -156,19 +157,21 @@ export default function OnboardingPage() {
               id="github"
               value={githubLogin}
               onChange={(e) => setGithubLogin(e.target.value)}
-              placeholder="Optional — VERIQ will search public GitHub orgs"
+              placeholder="Optional — public org or username"
             />
             <p className="mt-1 text-xs text-[var(--muted)]">
-              Leave blank to resolve from the name. Public repositories only. Secret values are never stored.
+              Paste a handle if you have one. VERIQ does not guess GitHub from the company name.
             </p>
           </div>
 
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading
-              ? "Finding the company and scanning…"
-              : addingAnother
-                ? "Add company and scan"
-                : "Create company and scan"}
+          <Button type="submit" className="w-full" disabled={loading !== "idle"}>
+            {loading === "find"
+              ? "Finding the public site…"
+              : loading === "scan"
+                ? "Reading the public story…"
+                : addingAnother
+                  ? "Add company and scan"
+                  : "Create company and scan"}
           </Button>
         </form>
       </div>

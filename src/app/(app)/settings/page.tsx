@@ -69,8 +69,8 @@ export default function SettingsPage() {
 
   async function removeCompany() {
     if (!currentOrg) return;
-    if (confirmName.trim() !== currentOrg.name) {
-      setMessage("Type the company name exactly to remove it.");
+    if (confirmName.trim().toLowerCase() !== currentOrg.name.trim().toLowerCase()) {
+      setMessage("Type the company name to remove it.");
       return;
     }
     setRemoving(true);
@@ -208,7 +208,10 @@ export default function SettingsPage() {
           type="button"
           variant="danger"
           className="mt-4"
-          disabled={removing || confirmName.trim() !== currentOrg.name}
+          disabled={
+            removing ||
+            confirmName.trim().toLowerCase() !== currentOrg.name.trim().toLowerCase()
+          }
           onClick={() => void removeCompany()}
         >
           {removing ? "Removing…" : "Remove this company"}

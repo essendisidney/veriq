@@ -53,9 +53,9 @@ const STORY_HREF =
 const SKIP_HREF =
   /\.(pdf|jpe?g|png|gif|svg|webp|css|js|zip|mp4|woff2?)(\?|$)|mailto:|tel:|javascript:|\/(login|signin|signup|cart|checkout|wp-admin|cdn-cgi)\b/i;
 
-const MAX_PAGES = 8;
-const PAGE_TIMEOUT_MS = 6000;
-const PAGE_BYTES = 80_000;
+const MAX_PAGES = 4;
+const PAGE_TIMEOUT_MS = 3000;
+const PAGE_BYTES = 60_000;
 
 export function stripToText(html: string) {
   return html
@@ -158,7 +158,7 @@ export async function crawlStory(origin: string, homepageHtml: string): Promise<
     .filter((url) => url.replace(/\/$/, "") !== homeUrl)
     .slice(0, MAX_PAGES);
 
-  const fetched = await mapPool(candidates, 4, fetchPage);
+  const fetched = await mapPool(candidates, 6, fetchPage);
 
   const pages: StoryPage[] = [];
   const htmlParts: string[] = [];

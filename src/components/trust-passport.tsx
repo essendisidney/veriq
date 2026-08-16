@@ -31,6 +31,12 @@ export function TrustPassport({
       <p className="mt-6 text-sm font-medium text-[var(--ink)]">
         {DECISION_POSTURE_LABELS[profile.posture]}
       </p>
+      {(profile.missing ?? []).length > 0 && (
+        <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
+          {profile.missing.length} decision fact{profile.missing.length === 1 ? "" : "s"} still
+          UNKNOWN. A public site is not a company extract.
+        </p>
+      )}
       <p className="mt-2 text-sm leading-7 text-[var(--muted)]">{profile.disclaimer}</p>
       <p className="mt-5 text-xs leading-5 text-[var(--muted)]">
         This is a shareable picture of what can be proven today — not a “VERIQ Verified”

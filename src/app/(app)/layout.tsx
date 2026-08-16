@@ -9,6 +9,8 @@ import {
 } from "@/components/workspace/workspace-provider";
 import type { MembershipRole, Organization } from "@/lib/database.types";
 
+export const maxDuration = 30;
+
 export default async function AppLayout({
   children,
 }: {

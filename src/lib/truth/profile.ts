@@ -21,6 +21,11 @@ export type TrustMaterial = {
   href: string;
 };
 
+export type MissingEvidence = {
+  title: string;
+  need: string;
+};
+
 export type TrustProfile = {
   risk: number;
   evidence: number;
@@ -35,9 +40,22 @@ export type TrustProfile = {
   inferences: number;
   requiresReview: number;
   material: TrustMaterial[];
+  missing: MissingEvidence[];
   summary: string;
   disclaimer: string;
 };
+
+export function listMissingEvidence(claims?: ClaimsAssessment | null): MissingEvidence[] {
+  return (claims?.claims ?? [])
+    .filter((item) => {
+      const verdict = normalizeVerdict(item.verdict);
+      return (verdict === "unknown" || verdict === "unverified") && item.requiredDocument;
+    })
+    .map((item) => ({
+      title: item.title,
+      need: item.requiredDocument as string,
+    }));
+}
 
 type RiskLike = {
   title: string;
@@ -121,12 +139,16 @@ export function buildTrustProfile(input: {
     })),
   ].slice(0, 5);
 
+  const missing = listMissingEvidence(input.claims);
+
   const summary =
-    evidence < 40
-      ? `Risk ${input.risk}/100 does not mean the company is safe. Evidence quality is ${evidence}/100 — VERIQ does not have enough to say it is not risky.`
-      : contradicted
-        ? `The story and the evidence do not fully agree. Decision confidence ${confidence}%. This is not a finding of fraud.`
-        : `Evidence quality ${evidence}/100 · decision confidence ${confidence}%. Every number is traceable to a claim, a finding, or an unknown.`;
+    missing.length >= 3
+      ? `The public story was read. ${missing.length} decision facts are still UNKNOWN — a website is not a CR12, a licence, directors, or cash. Missing evidence is the finding.`
+      : evidence < 40
+        ? `Risk ${input.risk}/100 does not mean the company is safe. Evidence quality is ${evidence}/100 — VERIQ does not have enough to say it is not risky.`
+        : contradicted
+          ? `The story and the evidence do not fully agree. Decision confidence ${confidence}%. This is not a finding of fraud.`
+          : `Evidence quality ${evidence}/100 · decision confidence ${confidence}%. Every number is traceable to a claim, a finding, or an unknown.`;
 
   return {
     risk: input.risk,
@@ -142,6 +164,7 @@ export function buildTrustProfile(input: {
     inferences,
     requiresReview,
     material,
+    missing,
     summary,
     disclaimer:
       "This is not a KYB clearance, credit rating, legal opinion or instruction to lend, invest, insure or award. No evidence = no conclusion.",

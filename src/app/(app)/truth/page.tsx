@@ -32,6 +32,7 @@ import {
 } from "@/lib/claims/assess";
 import { buildTrustProfile, type TrustProfile } from "@/lib/truth/profile";
 import { formatDate } from "@/lib/utils";
+import { MissingEvidencePanel } from "@/components/missing-evidence";
 
 const TRI: { value: TriState; label: string }[] = [
   { value: "unknown", label: "Unknown" },
@@ -98,12 +99,11 @@ export default function TruthPage() {
     setAssessedAt(scans?.[0]?.completed_at ?? null);
     setAttested(parseAttestedClaims(asset?.metadata));
     setTrust(
-      summary?.trust ??
-        buildTrustProfile({
-          risk: overall,
-          claims: nextClaims,
-          risks: risks ?? [],
-        }),
+      buildTrustProfile({
+        risk: overall,
+        claims: nextClaims,
+        risks: risks ?? [],
+      }),
     );
   }
 
@@ -154,6 +154,12 @@ export default function TruthPage() {
             assessedAt={assessedAt ? formatDate(assessedAt) : "No completed scan"}
             profile={trust}
           />
+        </div>
+      )}
+
+      {trust && trust.missing.length > 0 && (
+        <div className="mb-6">
+          <MissingEvidencePanel items={trust.missing} href="/truth" />
         </div>
       )}
 

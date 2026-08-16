@@ -65,14 +65,12 @@ export default function PassportPage() {
         | { claims?: ClaimsAssessment; integrity?: IntegrityAssessment; trust?: TrustProfile; website?: string | null }
         | undefined;
       const overall = (scores?.[0] as Score | undefined)?.overall ?? 0;
-      const nextTrust =
-        summary?.trust ??
-        buildTrustProfile({
-          risk: overall,
-          claims: summary?.claims ?? null,
-          integrity: summary?.integrity ?? null,
-          risks: (risks as Risk[]) ?? [],
-        });
+      const nextTrust = buildTrustProfile({
+        risk: overall,
+        claims: summary?.claims ?? null,
+        integrity: summary?.integrity ?? null,
+        risks: (risks as Risk[]) ?? [],
+      });
       setTrust(nextTrust);
       setAssessedAt(scans?.[0]?.completed_at ?? null);
       setPassport(

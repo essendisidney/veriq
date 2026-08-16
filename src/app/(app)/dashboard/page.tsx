@@ -31,6 +31,7 @@ import type { ClaimsAssessment } from "@/lib/claims/assess";
 import { buildTrustProfile, DECISION_POSTURE_LABELS, type TrustProfile } from "@/lib/truth/profile";
 import { isScanDue, parseCadence, type ScanCadence } from "@/lib/webhooks/cadence";
 import { isOverdue } from "@/lib/risk/certainty";
+import { MissingEvidencePanel } from "@/components/missing-evidence";
 
 export default function DashboardPage() {
   const { currentOrg } = useWorkspace();
@@ -133,13 +134,12 @@ export default function DashboardPage() {
       setIntegrity(summary?.integrity ?? null);
       setClaims(summary?.claims ?? null);
       setTrust(
-        summary?.trust ??
-          buildTrustProfile({
-            risk: (scores?.[0] as Score)?.overall ?? 0,
-            claims: summary?.claims ?? null,
-            integrity: summary?.integrity ?? null,
-            risks: (topRisks as Risk[]) ?? [],
-          }),
+        buildTrustProfile({
+          risk: (scores?.[0] as Score)?.overall ?? 0,
+          claims: summary?.claims ?? null,
+          integrity: summary?.integrity ?? null,
+          risks: (topRisks as Risk[]) ?? [],
+        }),
       );
       const monitoringMeta = (monitoring?.metadata ?? null) as {
         cadence?: string;
@@ -305,6 +305,9 @@ export default function DashboardPage() {
           </section>
 
           <div className="space-y-6">
+            {trust && trust.missing.length > 0 && (
+              <MissingEvidencePanel items={trust.missing} />
+            )}
             <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="font-display text-2xl">What changed?</h2>
@@ -800,7 +803,7 @@ export default function DashboardPage() {
                 </p>
               ) : (
                 <div>
-                  <div className="mb-4 grid gap-4 sm:grid-cols-3">
+                  <div className="mb-4 grid gap-4 sm:grid-cols-4">
                     <div>
                       <p className="text-xs uppercase tracking-wide text-[var(--muted)]">
                         Contradicted
@@ -818,6 +821,12 @@ export default function DashboardPage() {
                         Verified
                       </p>
                       <p className="mt-1 font-display text-3xl">{claims.verified}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-[var(--muted)]">
+                        Unknown
+                      </p>
+                      <p className="mt-1 font-display text-3xl">{claims.unknown}</p>
                     </div>
                   </div>
                   <p className="text-sm leading-6 text-[var(--muted)]">{claims.summary}</p>

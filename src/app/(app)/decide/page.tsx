@@ -11,9 +11,10 @@ import { ScanButton } from "@/components/scan-button";
 import { answerAsk, type AskIntent } from "@/lib/truth/ask";
 import { TRUST_CALL_LABELS } from "@/lib/truth/call";
 import type { ClaimsAssessment } from "@/lib/claims/assess";
-import type { TrustProfile } from "@/lib/truth/profile";
+import { buildTrustProfile, type TrustProfile } from "@/lib/truth/profile";
 import type { ChangeSet } from "@/lib/changes/diff";
 import type { Risk } from "@/lib/database.types";
+import { MissingEvidencePanel } from "@/components/missing-evidence";
 
 const ROOMS: { id: AskIntent; title: string; question: string; href: string }[] = [
   { id: "lend", title: "Loan room", question: "Can we lend this company?", href: "/reports/credit" },
@@ -55,7 +56,12 @@ export default function DecidePage() {
         | { claims?: ClaimsAssessment; trust?: TrustProfile; changes?: ChangeSet }
         | undefined;
       setClaims(summary?.claims ?? null);
-      setTrust(summary?.trust ?? null);
+      setTrust(
+        buildTrustProfile({
+          risk: summary?.trust?.risk ?? 0,
+          claims: summary?.claims ?? null,
+        }),
+      );
       setChanges(summary?.changes ?? null);
       setCritical((risks ?? []).length);
       setLoaded(true);
@@ -124,6 +130,11 @@ export default function DecidePage() {
           </Link>
           <p className="mt-4 text-xs text-[var(--muted)]">{answer.disclaimer}</p>
         </section>
+      )}
+      {answer && trust && trust.missing.length > 0 && (
+        <div className="mt-6">
+          <MissingEvidencePanel items={trust.missing} />
+        </div>
       )}
     </div>
   );

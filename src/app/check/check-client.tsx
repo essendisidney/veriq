@@ -62,7 +62,7 @@ export default function CheckClient() {
         </div>
         {busy && (
           <p className="mt-10 font-display text-xl italic text-[var(--muted)]">
-            VERIQ is finding the public company, then reading the story…
+            VERIQ is finding the public site, then reading a few pages…
           </p>
         )}
         {error && <p className="mt-8 text-sm text-[var(--critical)]">{error}</p>}
@@ -110,10 +110,13 @@ export default function CheckClient() {
                 ))}
               </ul>
             </div>
-            <div className="mt-10 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
-              <p className="text-sm text-[var(--ink)]">
-                VERIQ found {snapshot.additionalSignals} additional signal
-                {snapshot.additionalSignals === 1 ? "" : "s"} that stay locked.
+            <div className="mt-10 rounded-2xl border border-[var(--medium)] bg-[rgba(232,168,73,0.08)] p-6">
+              <p className="eyebrow">Missing evidence</p>
+              <p className="mt-3 font-display text-2xl italic text-[var(--ink)]">
+                Still UNKNOWN without an authorised extract
+              </p>
+              <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
+                A public website is not a CR12, a licence, or cash. VERIQ will not invent the rest.
               </p>
               <ul className="mt-4 space-y-2 text-sm leading-6 text-[var(--muted)]">
                 {snapshot.locked.slice(0, 7).map((item) => (

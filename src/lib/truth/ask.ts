@@ -102,6 +102,9 @@ export function answerAsk(input: {
               : `Trusting ${input.company}`;
 
   let headline = `${TRUST_CALL_LABELS[call]} — ${room}.`;
+  if (unknown.length + unverified.length >= 3) {
+    headline = `${TRUST_CALL_LABELS[call]} — ${room}. ${unknown.length + unverified.length} facts are still UNKNOWN. A public site is not the decision file.`;
+  }
   if (intent === "delta") {
     headline = input.changes?.summary
       ? input.changes.summary
