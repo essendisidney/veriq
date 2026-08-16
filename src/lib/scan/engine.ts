@@ -907,27 +907,40 @@ export function buildRisks(input: {
         },
       });
     } else if (assessment.coverage < 50 && gaps.length) {
+      const attestedGaps = gaps.filter((item) => item.kind === "attested");
+      const insolvency = assessment.category === "insolvency";
       risks.push({
         fingerprint: `reg:weak-safeguards:${assessment.code}`,
-        title: `Weak observed safeguards for ${assessment.code}`,
-        description: `Observable coverage is ${assessment.coverage}%. Gaps: ${gaps.map((item) => item.label).join(", ")}.`,
+        title: attestedGaps.length && attestedGaps.length === gaps.length
+          ? `Attested gaps for ${assessment.name}`
+          : `Weak observed safeguards for ${assessment.code}`,
+        description: `Coverage is ${assessment.coverage}%. Gaps: ${gaps.map((item) => item.label).join(", ")}.`,
         category: "regulatory",
-        severity: "medium",
+        severity: insolvency ? "high" : "medium",
         likelihood: 60,
-        impact: 65,
+        impact: insolvency ? 80 : 65,
         confidence: 78,
         why_it_matters: assessment.impact,
-        recommendation: "Close the observed technical gaps, then attach the attested artefacts.",
-        owner_role: "Compliance",
+        recommendation: attestedGaps.length
+          ? "Produce the artefacts marked as missing. VERIQ will not invent compliance, cash or a legal opinion."
+          : "Close the observed technical gaps, then attach the attested artefacts.",
+        owner_role:
+          insolvency || assessment.category === "professional" ? "Counsel" : "Compliance",
         evidence: [
           {
             source_type: "regulation",
             source_reference: assessment.code,
-            content: `Coverage ${assessment.coverage}% of observable controls.`,
+            content: `Coverage ${assessment.coverage}%. Gaps: ${gaps.map((item) => item.label).join("; ")}.`,
             confidence: 78,
-            trust_status: "observed",
+            trust_status: attestedGaps.length ? "inferred" : "observed",
           },
         ],
+        action: {
+          title: `Close gaps for ${assessment.code}`,
+          owner_role:
+            insolvency || assessment.category === "professional" ? "Counsel" : "Compliance",
+          priority: insolvency ? "high" : "medium",
+        },
       });
     }
   }

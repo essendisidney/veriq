@@ -9,6 +9,10 @@ import {
 } from "@/lib/scan/engine";
 import { scanExposure } from "@/lib/scan/exposure";
 import { assessRegulations } from "@/lib/regulations/assess";
+import {
+  parseRegulationAttestations,
+  REGULATION_ATTEST_ASSET,
+} from "@/lib/regulations/attest";
 import { assessVendors } from "@/lib/vendors/assess";
 import { declaredFromAsset, detectVendors } from "@/lib/vendors/detect";
 import { buildRiskGraph } from "@/lib/graph/build";
@@ -214,12 +218,21 @@ export async function runOrganizationScan(
       }
     }
 
+    const { data: regulationAttest } = await supabase
+      .from("assets")
+      .select("metadata")
+      .eq("organization_id", organizationId)
+      .eq("type", REGULATION_ATTEST_ASSET.type)
+      .eq("name", REGULATION_ATTEST_ASSET.name)
+      .maybeSingle();
+
     const assessments = assessRegulations({
       country: org.country,
       industry: org.industry,
       website,
       github,
       exposure,
+      attestations: parseRegulationAttestations(regulationAttest?.metadata),
     });
 
     const { data: vendorAssets } = await supabase

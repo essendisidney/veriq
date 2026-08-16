@@ -7,32 +7,56 @@ import { createClient } from "@/lib/supabase/client";
 import { useWorkspace } from "@/components/workspace/workspace-provider";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
+import { AttestRegulation } from "@/components/attest-regulation";
 import type { RegulationAssessment } from "@/lib/regulations/assess";
+import {
+  parseRegulationAttestations,
+  REGULATION_ATTEST_ASSET,
+  type ArtefactBand,
+} from "@/lib/regulations/attest";
 
 export default function RegulationDetailPage() {
   const params = useParams<{ code: string }>();
   const { currentOrg } = useWorkspace();
   const [reg, setReg] = useState<RegulationAssessment | null>(null);
+  const [saved, setSaved] = useState<Record<string, ArtefactBand>>({});
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     if (!currentOrg) return;
     async function load() {
       const supabase = createClient();
-      const { data } = await supabase
-        .from("scans")
-        .select("summary")
-        .eq("organization_id", currentOrg!.id)
-        .eq("status", "completed")
-        .order("created_at", { ascending: false })
-        .limit(1);
+      const code = decodeURIComponent(params.code);
+      const [{ data }, { data: asset }] = await Promise.all([
+        supabase
+          .from("scans")
+          .select("summary")
+          .eq("organization_id", currentOrg!.id)
+          .eq("status", "completed")
+          .order("created_at", { ascending: false })
+          .limit(1),
+        supabase
+          .from("assets")
+          .select("metadata")
+          .eq("organization_id", currentOrg!.id)
+          .eq("type", REGULATION_ATTEST_ASSET.type)
+          .eq("name", REGULATION_ATTEST_ASSET.name)
+          .maybeSingle(),
+      ]);
       const summary = data?.[0]?.summary as
         | { regulatory?: RegulationAssessment[] }
         | undefined;
-      const code = decodeURIComponent(params.code);
       setReg(summary?.regulatory?.find((item) => item.code === code) ?? null);
+      setSaved(parseRegulationAttestations(asset?.metadata)[code] ?? {});
+      setLoaded(true);
     }
     void load();
   }, [currentOrg, params.code]);
+
+  if (!currentOrg) return null;
+  if (!loaded) {
+    return <p className="text-sm text-[var(--muted)]">Loading statute…</p>;
+  }
 
   if (!reg) {
     return (
@@ -118,6 +142,12 @@ export default function RegulationDetailPage() {
               VERIQ is not a lawyer, auditor or regulator. Final legal decisions stay with authorised professionals.
             </p>
           </div>
+          <AttestRegulation
+            organizationId={currentOrg.id}
+            code={reg.code}
+            items={reg.evidence}
+            saved={saved}
+          />
         </aside>
       </div>
     </div>

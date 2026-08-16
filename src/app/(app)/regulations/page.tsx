@@ -37,7 +37,7 @@ export default function RegulationsPage() {
     <div>
       <PageHeader
         title="Regulations"
-        description="Mapped through a control ontology from country and industry. Intelligence, not a legal opinion."
+        description="Mapped through a control ontology from country and industry. Attest missing artefacts, then rescan. Intelligence, not a legal opinion."
       />
       {assessments.length === 0 ? (
         <EmptyState

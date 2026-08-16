@@ -7,6 +7,7 @@ import {
   type EvidenceNeed,
   type RegulationDef,
 } from "@/lib/regulations/ontology";
+import type { RegulationAttestations } from "@/lib/regulations/attest";
 
 export type EvidenceStatus = {
   key: string;
@@ -72,8 +73,19 @@ export function collectSignals(input: {
   };
 }
 
-function evaluateNeed(need: EvidenceNeed, signals: ObservedSignals): EvidenceStatus {
+function evaluateNeed(
+  need: EvidenceNeed,
+  signals: ObservedSignals,
+  attested: Record<string, "unknown" | "yes" | "no"> | undefined,
+): EvidenceStatus {
   if (need.kind === "attested") {
+    const band = attested?.[need.key] ?? "unknown";
+    if (band === "yes") {
+      return { ...need, status: "present", source: "attested" };
+    }
+    if (band === "no") {
+      return { ...need, status: "gap", source: "attested" };
+    }
     return { ...need, status: "unknown" };
   }
 
@@ -95,13 +107,22 @@ function evaluateNeed(need: EvidenceNeed, signals: ObservedSignals): EvidenceSta
   };
 }
 
-function assessOne(def: RegulationDef, signals: ObservedSignals): RegulationAssessment {
-  const evidence = def.evidence.map((need) => evaluateNeed(need, signals));
+function assessOne(
+  def: RegulationDef,
+  signals: ObservedSignals,
+  attestations: RegulationAttestations,
+): RegulationAssessment {
+  const attested = attestations[def.code];
+  const evidence = def.evidence.map((need) => evaluateNeed(need, signals, attested));
   const observable = evidence.filter((item) => item.kind === "observable");
-  const present = observable.filter((item) => item.status === "present").length;
+  const declared = evidence.filter((item) => item.kind === "attested");
+  const presentObs = observable.filter((item) => item.status === "present").length;
+  const presentAtt = declared.filter((item) => item.status === "present").length;
   const coverage = observable.length
-    ? Math.round((present / observable.length) * 100)
-    : 0;
+    ? Math.round((presentObs / observable.length) * 100)
+    : declared.length
+      ? Math.round((presentAtt / declared.length) * 100)
+      : 0;
 
   const controls: ControlStatus[] = def.controls.map((id) => {
     const related = evidence.filter((item) => item.control === id);
@@ -134,9 +155,11 @@ export function assessRegulations(input: {
   website: WebsiteScan | null;
   github: GithubScan | null;
   exposure: Exposure | null;
+  attestations?: RegulationAttestations;
 }): RegulationAssessment[] {
   const signals = collectSignals(input);
+  const attestations = input.attestations ?? {};
   return regulationsFor(input.country, input.industry).map((def) =>
-    assessOne(def, signals),
+    assessOne(def, signals, attestations),
   );
 }
