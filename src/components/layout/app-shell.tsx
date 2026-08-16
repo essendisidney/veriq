@@ -20,6 +20,7 @@ import {
   LayoutDashboard,
   ListChecks,
   Menu,
+  Plus,
   Radar,
   ScanSearch,
   Globe,
@@ -129,7 +130,9 @@ function NavLink({
 }
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+  const pathname = usePathname();
   const { organizations, currentOrg, setCurrentOrgId } = useWorkspace();
+  const addingCompany = pathname === "/onboarding";
 
   return (
     <div className="flex h-full flex-col">
@@ -148,10 +151,23 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             ))}
           </select>
         ) : currentOrg ? (
-          <p className="mt-2 truncate text-[12px] text-[var(--muted)]">
+          <p className="mt-3 truncate text-[12px] text-[var(--muted)]">
             {currentOrg.name}
           </p>
         ) : null}
+        <Link
+          href="/onboarding"
+          onClick={onNavigate}
+          className={cn(
+            "mt-3 inline-flex items-center gap-1.5 text-[12px] font-medium transition-colors",
+            addingCompany
+              ? "text-[var(--accent)]"
+              : "text-[var(--muted)] hover:text-[var(--ink)]",
+          )}
+        >
+          <Plus className="h-3 w-3" />
+          Add company
+        </Link>
       </div>
       <nav className="flex-1 space-y-5 overflow-y-auto px-2.5 py-4">
         {navGroups.map((group) => (

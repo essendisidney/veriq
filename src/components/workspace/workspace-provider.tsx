@@ -28,7 +28,7 @@ type WorkspaceContextValue = {
   user: WorkspaceUser;
 };
 
-const STORAGE_KEY = "veriq_org_id";
+export const ORG_STORAGE_KEY = "veriq_org_id";
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 
 export function WorkspaceProvider({
@@ -40,11 +40,11 @@ export function WorkspaceProvider({
   initialOrganizations: WorkspaceOrg[];
   initialUser: WorkspaceUser;
 }) {
-  const [organizations] = useState(initialOrganizations);
+  const organizations = initialOrganizations;
   const [currentOrgId, setCurrentOrgIdState] = useState<string | null>(null);
 
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    const stored = localStorage.getItem(ORG_STORAGE_KEY);
     if (stored && organizations.some((o) => o.id === stored)) {
       setCurrentOrgIdState(stored);
     } else if (organizations.length > 0) {
@@ -54,7 +54,7 @@ export function WorkspaceProvider({
 
   const setCurrentOrgId = useCallback((id: string) => {
     setCurrentOrgIdState(id);
-    localStorage.setItem(STORAGE_KEY, id);
+    localStorage.setItem(ORG_STORAGE_KEY, id);
   }, []);
 
   const currentOrg = useMemo(
@@ -77,6 +77,10 @@ export function WorkspaceProvider({
       {children}
     </WorkspaceContext.Provider>
   );
+}
+
+export function useWorkspaceOptional() {
+  return useContext(WorkspaceContext);
 }
 
 export function useWorkspace() {

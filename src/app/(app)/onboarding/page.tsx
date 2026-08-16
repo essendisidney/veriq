@@ -8,9 +8,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { runOrganizationScan } from "@/lib/actions/scan";
+import {
+  ORG_STORAGE_KEY,
+  useWorkspaceOptional,
+} from "@/components/workspace/workspace-provider";
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const workspace = useWorkspaceOptional();
+  const addingAnother = Boolean(workspace?.organizations.length);
   const [name, setName] = useState("");
   const [website, setWebsite] = useState("");
   const [country, setCountry] = useState("KE");
@@ -43,19 +49,30 @@ export default function OnboardingPage() {
     }
 
     await runOrganizationScan(data);
+    localStorage.setItem(ORG_STORAGE_KEY, data);
     router.push("/dashboard");
     router.refresh();
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[var(--bg)] px-4 py-16">
+    <div
+      className={
+        addingAnother
+          ? "mx-auto max-w-lg"
+          : "flex min-h-screen items-center justify-center bg-[var(--bg)] px-4 py-16"
+      }
+    >
       <div className="w-full max-w-lg">
-        <p className="eyebrow">The company model</p>
+        <p className="eyebrow">{addingAnother ? "Another institution" : "The company model"}</p>
         <h1 className="mt-3 font-display text-4xl italic text-[var(--ink)]">
-          Create the company you want to VERIQ
+          {addingAnother
+            ? "Add a company to VERIQ"
+            : "Create the company you want to VERIQ"}
         </h1>
         <p className="mt-3 text-[15px] leading-7 text-[var(--muted)]">
-          Name, website, country, industry, GitHub. Then we scan for evidence — not a KYB dump.
+          {addingAnother
+            ? "Each institution gets its own evidence picture. Switching companies in the sidebar switches the whole model — Radar, Score, Truth, Passport."
+            : "Name, website, country, industry, GitHub. Then we scan for evidence — not a KYB dump."}
         </p>
 
         <form
@@ -133,7 +150,11 @@ export default function OnboardingPage() {
           </div>
 
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Creating and scanning…" : "Create company and scan"}
+            {loading
+              ? "Creating and scanning…"
+              : addingAnother
+                ? "Add company and scan"
+                : "Create company and scan"}
           </Button>
         </form>
       </div>
