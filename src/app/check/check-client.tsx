@@ -54,22 +54,24 @@ export default function CheckClient() {
           Should I trust this company?
         </h1>
         <p className="mt-5 max-w-xl text-[15px] leading-7 text-[var(--muted)]">
-          Seconds, not a setup wizard. Public website only. Company name, phone and registration
-          number stay UNKNOWN without an authorised extract you provide after signup.
+          Name the company. VERIQ finds the public website and reads the story. Phone and
+          registration number stay UNKNOWN without an authorised extract you provide after signup.
         </p>
         <div className="mt-10">
           <CompanySearch initial={q} size="hero" />
         </div>
         {busy && (
           <p className="mt-10 font-display text-xl italic text-[var(--muted)]">
-            VERIQ is building the company profile…
+            VERIQ is finding the public company, then reading the story…
           </p>
         )}
         {error && <p className="mt-8 text-sm text-[var(--critical)]">{error}</p>}
 
         {snapshot && style && (
           <section className="mt-14">
-            <p className="eyebrow">Should I trust {snapshot.hostname}?</p>
+            <p className="eyebrow">
+              Should I trust {snapshot.identity?.name ?? snapshot.hostname}?
+            </p>
             <p
               className="mt-4 font-display text-6xl italic leading-none md:text-7xl"
               style={{ color: style.color }}
@@ -79,6 +81,12 @@ export default function CheckClient() {
             <p className="mt-6 max-w-xl text-[15px] leading-7 text-[var(--muted)]">
               {snapshot.callWhy}
             </p>
+            {snapshot.identity && (
+              <p className="mt-3 max-w-xl text-sm leading-6 text-[var(--muted)]">
+                Named “{snapshot.identity.name}” → {snapshot.hostname}. {snapshot.identity.note}
+                {snapshot.pagesRead > 1 ? ` VERIQ read ${snapshot.pagesRead} public pages.` : ""}
+              </p>
+            )}
             <div className="mt-8 flex flex-wrap gap-2">
               <Badge variant={snapshot.https ? "accent" : "danger"}>
                 {snapshot.https ? "HTTPS" : "No HTTPS"}

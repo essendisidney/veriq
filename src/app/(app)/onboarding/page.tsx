@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { runOrganizationScan } from "@/lib/actions/scan";
+import { resolveCompanyIdentityAction } from "@/lib/actions/identity";
 import {
   ORG_STORAGE_KEY,
   useWorkspaceOptional,
@@ -32,14 +33,27 @@ export default function OnboardingPage() {
 
     const supabase = createClient();
     const slug = `${slugify(name)}-${Math.random().toString(36).slice(2, 6)}`;
+    let websiteUrl = website.trim();
+    let github = githubLogin.replace(/^@/, "") || null;
+
+    if (!websiteUrl) {
+      const resolved = await resolveCompanyIdentityAction(name);
+      if ("error" in resolved) {
+        setError(resolved.error);
+        setLoading(false);
+        return;
+      }
+      websiteUrl = resolved.identity.website;
+      github = github || resolved.identity.githubLogin;
+    }
 
     const { data, error: rpcError } = await supabase.rpc("create_organization", {
       p_name: name,
       p_slug: slug,
-      p_website: website || null,
+      p_website: websiteUrl || null,
       p_country: country,
       p_industry: industry,
-      p_github_login: githubLogin.replace(/^@/, "") || null,
+      p_github_login: github,
     });
 
     if (rpcError || !data) {
@@ -71,8 +85,8 @@ export default function OnboardingPage() {
         </h1>
         <p className="mt-3 text-[15px] leading-7 text-[var(--muted)]">
           {addingAnother
-            ? "Each institution gets its own evidence picture. Switching companies in the sidebar switches the whole model — Radar, Score, Truth, Passport."
-            : "Name, website, country, industry, GitHub. Then we scan for evidence — not a KYB dump."}
+            ? "Name the institution. VERIQ finds the public website and GitHub, then scans the story. Paste a URL if you already have it."
+            : "Name the company. VERIQ finds the public site and reads the story — not a KYB dump. Website and GitHub are optional."}
         </p>
 
         <form
@@ -101,7 +115,7 @@ export default function OnboardingPage() {
               id="website"
               value={website}
               onChange={(e) => setWebsite(e.target.value)}
-              placeholder="https://acme.co.ke"
+              placeholder="Leave blank — VERIQ will resolve it from the name"
             />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -142,16 +156,16 @@ export default function OnboardingPage() {
               id="github"
               value={githubLogin}
               onChange={(e) => setGithubLogin(e.target.value)}
-              placeholder="acme-org"
+              placeholder="Optional — VERIQ will search public GitHub orgs"
             />
             <p className="mt-1 text-xs text-[var(--muted)]">
-              Public repositories only for this MVP. Secret values are never stored.
+              Leave blank to resolve from the name. Public repositories only. Secret values are never stored.
             </p>
           </div>
 
           <Button type="submit" className="w-full" disabled={loading}>
             {loading
-              ? "Creating and scanning…"
+              ? "Finding the company and scanning…"
               : addingAnother
                 ? "Add company and scan"
                 : "Create company and scan"}

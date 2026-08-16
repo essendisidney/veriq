@@ -5,6 +5,7 @@ import { extractObservedClaims } from "@/lib/claims/assess";
 import { detectVendors } from "@/lib/vendors/detect";
 import { assessVendors } from "@/lib/vendors/assess";
 import { resolvePublicQuery } from "@/lib/truth/query";
+import { resolveCompanyIdentity, type CompanyIdentity } from "@/lib/truth/identity";
 import { TRUST_CALL_HINTS, type TrustCall } from "@/lib/truth/call";
 
 export type PublicFinding = {
@@ -29,15 +30,32 @@ export type PublicSnapshot = {
   findings: PublicFinding[];
   additionalSignals: number;
   locked: string[];
+  queriedAs: string;
+  identity: {
+    name: string;
+    method: string;
+    note: string;
+    githubLogin: string | null;
+  } | null;
+  pagesRead: number;
 };
 
 export async function publicCompanySnapshot(query: string): Promise<
   { snapshot: PublicSnapshot } | { error: string }
 > {
-  const resolved = resolvePublicQuery(query);
-  if (resolved.kind === "blocked") return { error: resolved.error };
+  const classified = resolvePublicQuery(query);
+  if (classified.kind === "blocked") return { error: classified.error };
 
-  const scanned = await scanWebsite(resolved.website);
+  let website = classified.kind === "website" ? classified.website : "";
+  let identity: CompanyIdentity | null = null;
+  if (classified.kind === "name") {
+    const resolved = await resolveCompanyIdentity(classified.name);
+    if ("error" in resolved) return { error: resolved.error };
+    identity = resolved.identity;
+    website = resolved.identity.website;
+  }
+
+  const scanned = await scanWebsite(website);
   if (!scanned) return { error: "Enter a public https website" };
   if (!scanned.reachable) {
     return { error: scanned.error ?? "That site was not reachable from VERIQ" };
@@ -137,6 +155,16 @@ export async function publicCompanySnapshot(query: string): Promise<
       findings: findings.slice(0, 3),
       additionalSignals: Math.max(0, locked.length - 3),
       locked,
+      queriedAs: query.trim(),
+      identity: identity
+        ? {
+            name: identity.name,
+            method: identity.method,
+            note: identity.note,
+            githubLogin: identity.githubLogin,
+          }
+        : null,
+      pagesRead: (scanned.reachable ? 1 : 0) + scanned.storyPages.length,
     },
   };
 }

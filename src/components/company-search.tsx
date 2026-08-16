@@ -38,7 +38,7 @@ export function CompanySearch({
         <Input
           value={value}
           onChange={(event) => setValue(event.target.value)}
-          placeholder="Website, or an email whose domain we can observe"
+          placeholder="Company name, website, or an email whose domain we can observe"
           className={cn(
             "flex-1",
             size === "hero" && "h-12 border-transparent bg-transparent text-base shadow-none",

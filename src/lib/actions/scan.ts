@@ -43,6 +43,7 @@ import {
   webhookPayload,
 } from "@/lib/webhooks/deliver";
 import { computeNextDue, parseCadence } from "@/lib/webhooks/cadence";
+import { resolveCompanyIdentity } from "@/lib/truth/identity";
 
 const SCAN_COOLDOWN_MS = 90_000;
 const SCAN_STALE_MS = 10 * 60_000;
@@ -146,12 +147,29 @@ export async function runOrganizationScan(
   if (scanError || !scan) return { error: scanError?.message ?? "Scan failed" };
 
   try {
+    let websiteUrl = org.website;
+    let githubLogin = org.github_login;
+    if (!websiteUrl && org.name) {
+      const resolved = await isolate(() => resolveCompanyIdentity(org.name), null);
+      if (resolved && "identity" in resolved) {
+        websiteUrl = resolved.identity.website;
+        githubLogin = githubLogin || resolved.identity.githubLogin;
+        await supabase
+          .from("organizations")
+          .update({
+            website: websiteUrl,
+            github_login: githubLogin,
+          })
+          .eq("id", organizationId);
+      }
+    }
+
     let hostname: string | null = null;
-    if (org.website) {
+    if (websiteUrl) {
       try {
-        const withProtocol = /^https?:\/\//i.test(org.website)
-          ? org.website
-          : `https://${org.website}`;
+        const withProtocol = /^https?:\/\//i.test(websiteUrl)
+          ? websiteUrl
+          : `https://${websiteUrl}`;
         hostname = new URL(withProtocol).hostname;
       } catch {
         hostname = null;
@@ -159,11 +177,11 @@ export async function runOrganizationScan(
     }
 
     const [website, github, exposure, previousScan, previousOpen] = await Promise.all([
-      org.website
-        ? isolate(() => scanWebsite(org.website!), null)
+      websiteUrl
+        ? isolate(() => scanWebsite(websiteUrl!), null)
         : Promise.resolve(null),
-      org.github_login
-        ? isolate(() => scanGithub(org.github_login!, options?.githubToken), null)
+      githubLogin
+        ? isolate(() => scanGithub(githubLogin!, options?.githubToken), null)
         : Promise.resolve(null),
       hostname
         ? isolate(() => scanExposure(hostname), null)

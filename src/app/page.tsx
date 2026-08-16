@@ -58,8 +58,9 @@ export default async function HomePage() {
           Should I trust this company?
         </h1>
         <p className="mt-7 max-w-xl text-[17px] leading-8 text-[var(--muted)]">
-          Paste a website. In seconds VERIQ shows Proceed, Investigate or Stop — from evidence,
-          not a KYB list. We do not scrape BRS, LinkedIn or a registry by name.
+          Name the company. In seconds VERIQ finds the public site, reads the story, and shows
+          Proceed, Investigate or Stop — from evidence, not a KYB list. We do not scrape BRS,
+          LinkedIn or a registry by registration number.
         </p>
         <div className="mt-12">
           <CompanySearch size="hero" />
