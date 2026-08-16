@@ -106,6 +106,7 @@ export default function FinancePage() {
       liquidity: String(formData.get("liquidity") ?? "unknown"),
       revenueMix: String(formData.get("revenueMix") ?? "unknown"),
       singleSite: String(formData.get("singleSite") ?? "unknown"),
+      secondaryPaymentRail: String(formData.get("secondaryPaymentRail") ?? "unknown"),
       keyPerson: String(formData.get("keyPerson") ?? "unknown"),
     });
     setSaving(false);
@@ -202,6 +203,12 @@ export default function FinancePage() {
               label="Single site for critical operations"
               options={TRI}
               defaultValue={attested?.singleSite ?? "unknown"}
+            />
+            <Field
+              id="secondaryPaymentRail"
+              label="Secondary payment / collection rail exists"
+              options={TRI}
+              defaultValue={attested?.secondaryPaymentRail ?? "unknown"}
             />
             <Field
               id="keyPerson"

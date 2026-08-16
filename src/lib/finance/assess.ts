@@ -12,6 +12,7 @@ export type AttestedFinance = {
   revenueMix: RevenueMix;
   singleSite: TriState;
   keyPerson: TriState;
+  secondaryPaymentRail: TriState;
 };
 
 export const DEFAULT_ATTESTED: AttestedFinance = {
@@ -20,6 +21,7 @@ export const DEFAULT_ATTESTED: AttestedFinance = {
   revenueMix: "unknown",
   singleSite: "unknown",
   keyPerson: "unknown",
+  secondaryPaymentRail: "unknown",
 };
 
 export type FinanceSignal = {
@@ -65,6 +67,7 @@ export function parseAttested(metadata: unknown): AttestedFinance {
     revenueMix: row.revenueMix ?? "unknown",
     singleSite: row.singleSite ?? "unknown",
     keyPerson: row.keyPerson ?? "unknown",
+    secondaryPaymentRail: row.secondaryPaymentRail ?? "unknown",
   };
 }
 
@@ -191,6 +194,9 @@ export function assessFinance(input: {
   if (attested.revenueMix === "unknown") unknowns.push("Revenue mix");
   if (attested.singleSite === "unknown") unknowns.push("Single-site operations");
   if (attested.keyPerson === "unknown") unknowns.push("Key-person dependency");
+  if (attested.secondaryPaymentRail === "unknown") {
+    unknowns.push("Secondary payment rail");
+  }
   unknowns.push("Revenue amount");
   unknowns.push("Transaction volume");
 

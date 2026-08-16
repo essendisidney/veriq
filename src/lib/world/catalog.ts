@@ -5,6 +5,7 @@ export const WORLD_KINDS = [
   "cyber",
   "government",
   "market",
+  "integrity",
 ] as const;
 
 export type WorldKind = (typeof WORLD_KINDS)[number];
@@ -32,6 +33,7 @@ export const WORLD_KIND_LABELS: Record<WorldKind, string> = {
   cyber: "Cyber",
   government: "Government",
   market: "Market",
+  integrity: "Integrity",
 };
 
 export const WORLD_CATALOG: WorldDef[] = [
@@ -213,6 +215,45 @@ export const WORLD_CATALOG: WorldDef[] = [
     jurisdictions: ["KE"],
     industries: ["fintech", "financial_services", "insurance", "retail", "saas"],
     regulationCodes: ["KE-CONSUMER"],
+  },
+  {
+    id: "ke-aceca-standing",
+    title: "Kenya ACECA / EACC standing regime",
+    kind: "integrity",
+    summary:
+      "The Anti-Corruption and Economic Crimes Act remains in force. This is a standing public condition — not a claim that this company, a director or a counterparty is corrupt or under investigation.",
+    jurisdictions: ["KE"],
+    industries: "*",
+    regulationCodes: ["KE-ACECA"],
+  },
+  {
+    id: "ke-beneficial-ownership",
+    title: "Kenya beneficial-ownership filing duty",
+    kind: "regulatory",
+    summary:
+      "Beneficial-ownership filing is a standing Companies Act duty. Whether this company's persons with significant control are published is UNKNOWN. VERIQ will not invent a cap table.",
+    jurisdictions: ["KE"],
+    industries: "*",
+    regulationCodes: ["KE-BO"],
+  },
+  {
+    id: "ke-public-procurement",
+    title: "Public procurement and asset-disposal duties",
+    kind: "integrity",
+    summary:
+      "PPADA duties apply to public entities. Tender-file completeness stays UNKNOWN until attested. This is not a finding that a procurement was irregular.",
+    jurisdictions: ["KE"],
+    industries: ["public_sector"],
+    regulationCodes: ["KE-PPADA"],
+  },
+  {
+    id: "pep-sanctions-unknown",
+    title: "PEP and sanctions screening is not operated here",
+    kind: "integrity",
+    summary:
+      "VERIQ does not run a PEP, sanctions or leak database. Screening status is UNKNOWN for every company. A hit will never be invented.",
+    jurisdictions: "*",
+    industries: "*",
   },
   {
     id: "uk-operational-resilience",

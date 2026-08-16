@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-const SCOPES = "read:user read:org public_repo";
+const SCOPES = "read:user read:org repo";
 
 function signingSecret() {
   return (

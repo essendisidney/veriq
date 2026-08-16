@@ -8,10 +8,18 @@ import { PageHeader } from "@/components/ui/page-header";
 import { CertaintyBadge, SeverityBadge } from "@/components/ui/badge";
 import { Badge } from "@/components/ui/badge";
 import { ActionStatusSelect, RiskStatusSelect } from "@/components/triage-controls";
+import { AttestRegulation } from "@/components/attest-regulation";
 import { TRUST_LABELS, formatDateTime } from "@/lib/utils";
-import { isOverdue } from "@/lib/risk/certainty";
+import { certaintyWhy, isOverdue } from "@/lib/risk/certainty";
 import type { Action, Evidence, Risk } from "@/lib/database.types";
 import { NODE_TYPE_LABELS, neighborsOf, type RiskGraph } from "@/lib/graph/build";
+import type { RegulationAssessment } from "@/lib/regulations/assess";
+import {
+  parseRegulationAttestations,
+  regulationCodeFromFinding,
+  REGULATION_ATTEST_ASSET,
+  type ArtefactBand,
+} from "@/lib/regulations/attest";
 
 function ifYouDoNothing(risk: Risk) {
   if (risk.severity === "critical") {
@@ -29,6 +37,8 @@ export default function FindingDetailPage() {
   const [evidence, setEvidence] = useState<Evidence[]>([]);
   const [actions, setActions] = useState<Action[]>([]);
   const [related, setRelated] = useState<RiskGraph["nodes"]>([]);
+  const [statute, setStatute] = useState<RegulationAssessment | null>(null);
+  const [savedAttest, setSavedAttest] = useState<Record<string, ArtefactBand>>({});
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -44,22 +54,47 @@ export default function FindingDetailPage() {
             .order("observed_at", { ascending: false }),
           supabase.from("actions").select("*").eq("risk_id", params.id),
         ]);
-      setRisk((riskRow as Risk) ?? null);
-      setEvidence((evidenceRows as Evidence[]) ?? []);
+      const nextRisk = (riskRow as Risk) ?? null;
+      const nextEvidence = (evidenceRows as Evidence[]) ?? [];
+      setRisk(nextRisk);
+      setEvidence(nextEvidence);
       setActions((actionRows as Action[]) ?? []);
 
-      if (riskRow) {
-        const { data: scans } = await supabase
-          .from("scans")
-          .select("summary")
-          .eq("organization_id", (riskRow as Risk).organization_id)
-          .eq("status", "completed")
-          .order("created_at", { ascending: false })
-          .limit(1);
-        const summary = scans?.[0]?.summary as { graph?: RiskGraph } | undefined;
+      if (nextRisk) {
+        const code = regulationCodeFromFinding({
+          fingerprint: nextRisk.fingerprint,
+          evidence: nextEvidence,
+        });
+        const [{ data: scans }, { data: asset }] = await Promise.all([
+          supabase
+            .from("scans")
+            .select("summary")
+            .eq("organization_id", nextRisk.organization_id)
+            .eq("status", "completed")
+            .order("created_at", { ascending: false })
+            .limit(1),
+          supabase
+            .from("assets")
+            .select("metadata")
+            .eq("organization_id", nextRisk.organization_id)
+            .eq("type", REGULATION_ATTEST_ASSET.type)
+            .eq("name", REGULATION_ATTEST_ASSET.name)
+            .maybeSingle(),
+        ]);
+        const summary = scans?.[0]?.summary as
+          | { graph?: RiskGraph; regulatory?: RegulationAssessment[] }
+          | undefined;
         const graph = summary?.graph;
-        const nodeId = `risk:${(riskRow as Risk).fingerprint}`;
+        const nodeId = `risk:${nextRisk.fingerprint}`;
         setRelated(graph ? neighborsOf(graph, nodeId) : []);
+        setStatute(
+          code
+            ? (summary?.regulatory?.find((item) => item.code === code) ?? null)
+            : null,
+        );
+        setSavedAttest(
+          code ? (parseRegulationAttestations(asset?.metadata)[code] ?? {}) : {},
+        );
       }
       setLoaded(true);
     }
@@ -111,6 +146,55 @@ export default function FindingDetailPage() {
               {risk.why_it_matters}
             </p>
           </div>
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
+            <h2 className="font-display text-xl">How sure is VERIQ</h2>
+            <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+              {certaintyWhy({
+                certainty: risk.certainty ?? "potential",
+                confidence: risk.confidence,
+                evidence,
+              })}
+            </p>
+          </div>
+          {related.length > 0 && (
+            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
+              <h2 className="font-display text-xl">Why this is material</h2>
+              <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+                Individual findings are not enough. These nodes sit next to this risk on the
+                company graph.
+              </p>
+              <ul className="mt-4 space-y-2">
+                {related.map((node) => (
+                  <li key={node.id}>
+                    {node.href ? (
+                      <Link
+                        href={node.href}
+                        className="block rounded-xl border border-[var(--border)] bg-[var(--elevated)] px-3 py-2 hover:border-[var(--accent)]"
+                      >
+                        <p className="text-sm text-[var(--ink)]">{node.label}</p>
+                        <p className="mt-0.5 text-xs text-[var(--muted)]">
+                          {NODE_TYPE_LABELS[node.type]}
+                        </p>
+                      </Link>
+                    ) : (
+                      <div className="rounded-xl border border-[var(--border)] bg-[var(--elevated)] px-3 py-2">
+                        <p className="text-sm text-[var(--ink)]">{node.label}</p>
+                        <p className="mt-0.5 text-xs text-[var(--muted)]">
+                          {NODE_TYPE_LABELS[node.type]}
+                        </p>
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              <Link
+                href="/graph"
+                className="mt-3 inline-block text-sm text-[var(--accent)] hover:underline"
+              >
+                Open risk graph
+              </Link>
+            </div>
+          )}
           <div className="rounded-2xl border border-[var(--critical)]/30 bg-[var(--surface)] p-6">
             <h2 className="font-display text-xl">If you do nothing</h2>
             <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
@@ -187,39 +271,20 @@ export default function FindingDetailPage() {
               </div>
             </dl>
           </div>
-          {related.length > 0 && (
-            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
-              <h2 className="font-display text-xl">In the graph</h2>
-              <ul className="mt-3 space-y-2">
-                {related.map((node) => (
-                  <li key={node.id}>
-                    {node.href ? (
-                      <Link
-                        href={node.href}
-                        className="block rounded-xl border border-[var(--border)] bg-[var(--elevated)] px-3 py-2 hover:border-[var(--accent)]"
-                      >
-                        <p className="text-sm text-[var(--ink)]">{node.label}</p>
-                        <p className="mt-0.5 text-xs text-[var(--muted)]">
-                          {NODE_TYPE_LABELS[node.type]}
-                        </p>
-                      </Link>
-                    ) : (
-                      <div className="rounded-xl border border-[var(--border)] bg-[var(--elevated)] px-3 py-2">
-                        <p className="text-sm text-[var(--ink)]">{node.label}</p>
-                        <p className="mt-0.5 text-xs text-[var(--muted)]">
-                          {NODE_TYPE_LABELS[node.type]}
-                        </p>
-                      </div>
-                    )}
-                  </li>
-                ))}
-              </ul>
+          {statute && (
+            <div className="space-y-3">
               <Link
-                href="/graph"
-                className="mt-3 inline-block text-sm text-[var(--accent)] hover:underline"
+                href={`/regulations/${statute.code}`}
+                className="text-sm text-[var(--accent)] hover:underline"
               >
-                Open risk graph
+                Open {statute.code}
               </Link>
+              <AttestRegulation
+                organizationId={risk.organization_id}
+                code={statute.code}
+                items={statute.evidence}
+                saved={savedAttest}
+              />
             </div>
           )}
           {actions.map((action) => (

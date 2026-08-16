@@ -25,6 +25,7 @@ export async function attestFinance(input: {
   liquidity: string;
   revenueMix: string;
   singleSite: string;
+  secondaryPaymentRail: string;
   keyPerson: string;
 }) {
   const supabase = await createClient();
@@ -39,6 +40,11 @@ export async function attestFinance(input: {
     revenueMix: pick(input.revenueMix, MIX, DEFAULT_ATTESTED.revenueMix),
     singleSite: pick(input.singleSite, TRI, DEFAULT_ATTESTED.singleSite),
     keyPerson: pick(input.keyPerson, TRI, DEFAULT_ATTESTED.keyPerson),
+    secondaryPaymentRail: pick(
+      input.secondaryPaymentRail,
+      TRI,
+      DEFAULT_ATTESTED.secondaryPaymentRail,
+    ),
   };
 
   const { data: existing } = await supabase

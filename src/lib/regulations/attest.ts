@@ -37,3 +37,15 @@ export function parseRegulationAttestations(metadata: unknown): RegulationAttest
 export function pickArtefactBand(value: string): ArtefactBand {
   return BANDS.includes(value as ArtefactBand) ? (value as ArtefactBand) : "unknown";
 }
+
+export function regulationCodeFromFinding(input: {
+  fingerprint: string;
+  evidence: { source_type: string; source_reference: string | null }[];
+}) {
+  const fromEvidence = input.evidence.find(
+    (item) => item.source_type === "regulation" && item.source_reference,
+  );
+  if (fromEvidence?.source_reference) return fromEvidence.source_reference;
+  const match = input.fingerprint.match(/^reg:[^:]+:(.+)$/);
+  return match?.[1] ?? null;
+}

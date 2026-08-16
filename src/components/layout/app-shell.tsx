@@ -25,6 +25,7 @@ import {
   Settings,
   ShieldAlert,
   Server,
+  Landmark,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -38,6 +39,7 @@ const navItems = [
   { label: "Reports", href: "/reports", icon: FileText },
   { label: "Changes", href: "/changes", icon: GitCompareArrows },
   { label: "External", href: "/world", icon: Globe },
+  { label: "Integrity", href: "/integrity", icon: Landmark },
   { label: "Findings", href: "/findings", icon: ShieldAlert },
   { label: "Actions", href: "/actions", icon: ListChecks },
   { label: "Technology", href: "/technology", icon: Server },

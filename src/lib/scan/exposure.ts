@@ -19,6 +19,11 @@ export type DnsInfo = {
   txt: string[];
 };
 
+export type JoinedHostname = {
+  hostname: string;
+  join: string;
+};
+
 export type Exposure = {
   hostname: string;
   httpsRedirect: boolean | null;
@@ -30,6 +35,7 @@ export type Exposure = {
   dns: DnsInfo;
   tls: TlsInfo | null;
   hostnames: string[];
+  joined?: JoinedHostname[];
   posture: number;
 };
 
@@ -182,7 +188,7 @@ export function scoreExposure(exposure: Omit<Exposure, "posture">) {
     else if (exposure.tls.daysRemaining < 14) score -= 16;
     else if (exposure.tls.daysRemaining < 30) score -= 8;
   }
-  if (exposure.hostnames.length > 12) score -= 5;
+  if ((exposure.joined?.length ?? 0) > 6) score -= 5;
   if (!exposure.securityTxt) score -= 2;
   return clamp(score);
 }
@@ -201,6 +207,7 @@ export async function scanExposure(hostname: string): Promise<Exposure> {
       dns: { a: [] as string[], aaaa: [] as string[], mx: [] as string[], ns: [] as string[], txt: [] as string[] },
       tls: null,
       hostnames: [hostname],
+      joined: [] as JoinedHostname[],
     };
     return { ...blocked, posture: scoreExposure(blocked) };
   }
@@ -249,7 +256,117 @@ export async function scanExposure(hostname: string): Promise<Exposure> {
     },
     tls: tlsInfo,
     hostnames,
+    joined: [] as JoinedHostname[],
   };
 
   return { ...base, posture: scoreExposure(base) };
+}
+
+const SURFACE_LABELS = new Set([
+  "mail",
+  "smtp",
+  "imap",
+  "pop",
+  "vpn",
+  "remote",
+  "citrix",
+  "owa",
+  "autodiscover",
+  "staging",
+  "stage",
+  "dev",
+  "test",
+  "uat",
+  "qa",
+  "api",
+  "app",
+  "admin",
+  "portal",
+  "sso",
+  "auth",
+  "login",
+  "idp",
+  "pay",
+  "checkout",
+  "billing",
+  "payments",
+  "git",
+  "gitlab",
+  "github",
+  "jenkins",
+  "ci",
+  "grafana",
+  "kibana",
+  "sentry",
+  "vault",
+  "cdn",
+  "static",
+  "assets",
+  "media",
+]);
+
+export function joinPublicHostnames(input: {
+  root: string;
+  hostnames: string[];
+  mx?: string[];
+  vendorNames?: string[];
+}): JoinedHostname[] {
+  const root = registrableDomain(input.root);
+  const apex = input.root.toLowerCase();
+  const mxHosts = (input.mx ?? []).map((item) =>
+    item.toLowerCase().replace(/\.$/, ""),
+  );
+  const vendorNeedles = (input.vendorNames ?? [])
+    .map((name) => name.toLowerCase().replace(/[^a-z0-9]+/g, ""))
+    .filter((name) => name.length >= 4);
+  const seen = new Set<string>();
+  const out: JoinedHostname[] = [];
+
+  for (const raw of input.hostnames) {
+    const host = raw.toLowerCase().replace(/\.$/, "");
+    if (seen.has(host)) continue;
+    if (host === apex || host === root || host === `www.${root}`) continue;
+
+    const labels = host.endsWith(`.${root}`)
+      ? host.slice(0, -(root.length + 1)).split(".")
+      : host.split(".");
+    const first = labels[0] ?? "";
+    let join: string | null = null;
+
+    if (SURFACE_LABELS.has(first)) {
+      join = `${first} operational surface`;
+    } else if (
+      mxHosts.some(
+        (mx) => mx === host || mx.endsWith(`.${host}`) || host.endsWith(`.${mx}`),
+      )
+    ) {
+      join = "MX / mail cousin";
+    } else {
+      const vendor = vendorNeedles.find((needle) =>
+        host.replace(/[^a-z0-9]+/g, "").includes(needle),
+      );
+      if (vendor) join = `vendor ${vendor}`;
+    }
+
+    if (!join) continue;
+    seen.add(host);
+    out.push({ hostname: host, join });
+    if (out.length >= 12) break;
+  }
+
+  return out;
+}
+
+export function withJoinedHostnames(
+  exposure: Exposure,
+  vendorNames: string[] = [],
+): Exposure {
+  const joined = joinPublicHostnames({
+    root: exposure.hostname,
+    hostnames: exposure.hostnames,
+    mx: exposure.dns.mx,
+    vendorNames,
+  });
+  const next = { ...exposure, joined };
+  return { ...next, posture: scoreExposure(next) };
 }

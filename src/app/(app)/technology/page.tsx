@@ -189,16 +189,24 @@ export default function TechnologyPage() {
 
           {exposure && exposure.hostnames.length > 0 && (
             <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
-              <h2 className="font-display text-2xl">Certificate hostnames</h2>
+              <h2 className="font-display text-2xl">Hostnames that join this company</h2>
               <p className="mt-1 text-sm text-[var(--muted)]">
-                Names observed in public certificate transparency for this domain.
+                Certificate transparency listed {exposure.hostnames.length} name
+                {exposure.hostnames.length === 1 ? "" : "s"}. Only names that join
+                mail, staging, admin, payment, vendor or secret-adjacent surface are kept.
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
-                {exposure.hostnames.map((host) => (
-                  <Badge key={host} variant="muted">
-                    {host}
+                {(exposure.joined?.length ? exposure.joined : []).map((item) => (
+                  <Badge key={item.hostname} variant="muted">
+                    {item.hostname}
+                    <span className="ml-1 text-[var(--muted)]">· {item.join}</span>
                   </Badge>
                 ))}
+                {!exposure.joined?.length && (
+                  <p className="text-sm text-[var(--muted)]">
+                    No joined hostnames. A dump of every subdomain would be a scanner again.
+                  </p>
+                )}
               </div>
             </section>
           )}

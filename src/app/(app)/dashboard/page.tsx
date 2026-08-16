@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useWorkspace } from "@/components/workspace/workspace-provider";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
-import { SeverityBadge, Badge } from "@/components/ui/badge";
+import { SeverityBadge, CertaintyBadge, Badge } from "@/components/ui/badge";
 import { ScanButton } from "@/components/scan-button";
 import {
   SCORE_DIMENSIONS,
@@ -26,6 +26,7 @@ import { assessFinance, DEFAULT_ATTESTED, type FinanceAssessment } from "@/lib/f
 import type { AiAssessment } from "@/lib/ai/assess";
 import type { ChangeSet } from "@/lib/changes/diff";
 import type { WorldAssessment } from "@/lib/world/assess";
+import type { IntegrityAssessment } from "@/lib/integrity/assess";
 import { isScanDue, parseCadence, type ScanCadence } from "@/lib/webhooks/cadence";
 import { isOverdue } from "@/lib/risk/certainty";
 
@@ -43,6 +44,7 @@ export default function DashboardPage() {
   const [ai, setAi] = useState<AiAssessment | null>(null);
   const [changes, setChanges] = useState<ChangeSet | null>(null);
   const [world, setWorld] = useState<WorldAssessment | null>(null);
+  const [integrity, setIntegrity] = useState<IntegrityAssessment | null>(null);
   const [scanDue, setScanDue] = useState(false);
   const [cadence, setCadence] = useState<ScanCadence>("off");
   const [loading, setLoading] = useState(true);
@@ -104,6 +106,7 @@ export default function DashboardPage() {
             ai?: AiAssessment;
             changes?: ChangeSet;
             world?: WorldAssessment;
+            integrity?: IntegrityAssessment;
           }
         | undefined;
       setExposure(summary?.exposure ?? null);
@@ -121,6 +124,7 @@ export default function DashboardPage() {
       setAi(summary?.ai ?? null);
       setChanges(summary?.changes ?? null);
       setWorld(summary?.world ?? null);
+      setIntegrity(summary?.integrity ?? null);
       const monitoringMeta = (monitoring?.metadata ?? null) as {
         cadence?: string;
         nextDueAt?: string;
@@ -334,7 +338,11 @@ export default function DashboardPage() {
                     <p className="text-xs uppercase tracking-wide text-[var(--muted)]">
                       Hostnames
                     </p>
-                    <p className="mt-1 text-lg">{exposure.hostnames.length}</p>
+                    <p className="mt-1 text-lg">
+                      {exposure.joined?.length
+                        ? `${exposure.joined.length} joined / ${exposure.hostnames.length}`
+                        : String(exposure.hostnames.length)}
+                    </p>
                   </div>
                   <div>
                     <p className="text-xs uppercase tracking-wide text-[var(--muted)]">
@@ -693,6 +701,49 @@ export default function DashboardPage() {
 
             <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
               <div className="mb-4 flex items-center justify-between">
+                <h2 className="font-display text-2xl">Integrity</h2>
+                <Link
+                  href="/integrity"
+                  className="text-sm text-[var(--accent)] hover:underline"
+                >
+                  Public records
+                </Link>
+              </div>
+              {!integrity ? (
+                <p className="text-sm text-[var(--muted)]">
+                  Run a scan. Company registry, licences and the advocate roll stay UNKNOWN unless they are actually public to VERIQ.
+                </p>
+              ) : (
+                <div>
+                  <div className="mb-4 grid gap-4 sm:grid-cols-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-[var(--muted)]">
+                        Contradictions
+                      </p>
+                      <p className="mt-1 font-display text-3xl">
+                        {integrity.contradictions.length}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-[var(--muted)]">
+                        Observed
+                      </p>
+                      <p className="mt-1 font-display text-3xl">{integrity.observed}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-[var(--muted)]">
+                        Unknown registers
+                      </p>
+                      <p className="mt-1 font-display text-3xl">{integrity.unknown}</p>
+                    </div>
+                  </div>
+                  <p className="text-sm leading-6 text-[var(--muted)]">{integrity.summary}</p>
+                </div>
+              )}
+            </section>
+
+            <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
+              <div className="mb-4 flex items-center justify-between">
                 <h2 className="font-display text-2xl">External world</h2>
                 <Link
                   href="/world"
@@ -760,7 +811,10 @@ export default function DashboardPage() {
                             {risk.why_it_matters}
                           </p>
                         </div>
-                        <SeverityBadge severity={risk.severity} />
+                        <div className="flex shrink-0 flex-col items-end gap-2">
+                          <SeverityBadge severity={risk.severity} />
+                          <CertaintyBadge certainty={risk.certainty ?? "potential"} />
+                        </div>
                       </Link>
                     </li>
                   ))}

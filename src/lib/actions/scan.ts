@@ -7,7 +7,7 @@ import {
   scanWebsite,
   scoreFromRisks,
 } from "@/lib/scan/engine";
-import { scanExposure } from "@/lib/scan/exposure";
+import { scanExposure, withJoinedHostnames } from "@/lib/scan/exposure";
 import { assessRegulations } from "@/lib/regulations/assess";
 import {
   parseRegulationAttestations,
@@ -19,6 +19,7 @@ import { buildRiskGraph } from "@/lib/graph/build";
 import { assessFinance, parseAttested } from "@/lib/finance/assess";
 import { assessAi, detectAi, parseAttestedAi, systemFromAsset } from "@/lib/ai/assess";
 import { assessWorld } from "@/lib/world/assess";
+import { assessIntegrity } from "@/lib/integrity/assess";
 import {
   buildSnapshot,
   criticalityFor,
@@ -306,6 +307,24 @@ export async function runOrganizationScan(
       exposure,
       packageCount: github?.packages.length ?? 0,
     });
+    const exposureJoined = exposure
+      ? withJoinedHostnames(
+          exposure,
+          vendorMap.vendors.map((item) => item.name),
+        )
+      : null;
+    const integrity = assessIntegrity({
+      country: org.country,
+      industry: org.industry,
+      privacyPolicyUrl: website?.privacyPolicyUrl ?? null,
+      privacyPolicyExcerpt: website?.privacyPolicyExcerpt ?? null,
+      githubConnected: Boolean(github?.connected),
+      relatedOrgs: github?.relatedOrgs ?? [],
+      vendors: vendorMap,
+      ai,
+      finance,
+      assessments,
+    });
 
     for (const vendor of vendorMap.vendors) {
       const existing = (vendorAssets ?? []).find((row) => {
@@ -391,7 +410,7 @@ export async function runOrganizationScan(
     const drafts = buildRisks({
       website,
       github,
-      exposure,
+      exposure: exposureJoined,
       assessments,
       vendors: vendorMap,
       finance,
@@ -535,7 +554,7 @@ export async function runOrganizationScan(
       vendors: vendorMap,
       regulations: assessments,
       ai,
-      exposure,
+      exposure: exposureJoined,
       findings: drafts.map((draft) => ({
         fingerprint: draft.fingerprint,
         title: draft.title,
@@ -651,8 +670,9 @@ export async function runOrganizationScan(
           finance,
           ai,
           world,
+          integrity,
           overall: score.overall,
-          exposure,
+          exposure: exposureJoined,
           snapshot,
           changes,
         },

@@ -7,6 +7,8 @@ import type { AiAssessment } from "@/lib/ai/assess";
 import type { WorldAssessment } from "@/lib/world/assess";
 import { certaintyFor, type Certainty } from "@/lib/risk/certainty";
 import { safeFetch } from "@/lib/scan/safe-fetch";
+import { githubIdentity } from "@/lib/github/oauth";
+import { listContradictions } from "@/lib/integrity/contradictions";
 
 export type DraftRisk = {
   fingerprint: string;
@@ -45,6 +47,8 @@ export type WebsiteScan = {
   responseHeaders: Record<string, string | null>;
   html: string;
   technologies: string[];
+  privacyPolicyUrl: string | null;
+  privacyPolicyExcerpt: string | null;
   error?: string;
 };
 
@@ -71,6 +75,9 @@ export type GithubScan = {
   publicRepos: number;
   repos: GithubRepoScan[];
   packages: string[];
+  connected: boolean;
+  relatedOrgs: string[];
+  privateRepos: number;
   error?: string;
 };
 
@@ -136,6 +143,60 @@ function detectTechnologies(html: string, headers: Headers) {
   return [...tech];
 }
 
+const PRIVACY_PATHS = [
+  "/privacy",
+  "/privacy-policy",
+  "/legal/privacy",
+  "/legal/privacy-policy",
+];
+
+async function findPrivacyPolicy(
+  origin: string,
+  html: string,
+): Promise<{ url: string; excerpt: string } | null> {
+  const hrefs = [...html.matchAll(/href=["']([^"']+)["']/gi)].map(
+    (match) => match[1]!,
+  );
+  const fromHtml = hrefs.find(
+    (href) =>
+      /privacy/i.test(href) &&
+      !/privacy-policy-generator|privacypolicytemplate/i.test(href),
+  );
+  const candidates: string[] = [];
+  if (fromHtml) {
+    try {
+      candidates.push(new URL(fromHtml, origin).toString());
+    } catch {
+      // Ignore malformed hrefs.
+    }
+  }
+  for (const path of PRIVACY_PATHS) {
+    candidates.push(new URL(path, origin).toString());
+  }
+
+  const seen = new Set<string>();
+  for (const url of candidates.slice(0, 4)) {
+    const key = url.replace(/\/$/, "");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const fetched = await safeFetch(url, { timeoutMs: 8000, maxBytes: 80_000 });
+    if ("error" in fetched) continue;
+    if (!fetched.response.ok) continue;
+    const text = (await fetched.response.text().catch(() => "")).slice(0, 20_000);
+    if (!/privacy|personal data|data protection|cookie/i.test(text)) continue;
+    const excerpt = text
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 4000);
+    if (!excerpt) continue;
+    return { url: fetched.url || url, excerpt };
+  }
+  return null;
+}
+
 function unreachableWebsite(
   parsed: URL,
   url: string,
@@ -152,6 +213,8 @@ function unreachableWebsite(
     responseHeaders: {},
     html: "",
     technologies: [],
+    privacyPolicyUrl: null,
+    privacyPolicyExcerpt: null,
     error,
   };
 }
@@ -189,6 +252,13 @@ export async function scanWebsite(website: string): Promise<WebsiteScan | null> 
       responseHeaders[key] = response.headers.get(key);
     }
     const finalUrl = fetched.url || url;
+    let origin = `${new URL(finalUrl).protocol}//${parsed.hostname}`;
+    try {
+      origin = new URL(finalUrl).origin;
+    } catch {
+      // Keep hostname origin.
+    }
+    const privacy = await findPrivacyPolicy(origin.endsWith("/") ? origin : `${origin}/`, html);
 
     return {
       hostname: parsed.hostname,
@@ -200,6 +270,8 @@ export async function scanWebsite(website: string): Promise<WebsiteScan | null> 
       responseHeaders,
       html,
       technologies: detectTechnologies(html, response.headers),
+      privacyPolicyUrl: privacy?.url ?? null,
+      privacyPolicyExcerpt: privacy?.excerpt ?? null,
     };
   } catch (error) {
     return unreachableWebsite(
@@ -304,6 +376,9 @@ export async function scanGithub(
       publicRepos: 0,
       repos: [],
       packages: [],
+      connected: Boolean(token),
+      relatedOrgs: [],
+      privateRepos: 0,
       error: "GitHub login is not a valid username or organisation",
     };
   }
@@ -316,20 +391,30 @@ export async function scanGithub(
       publicRepos: 0,
       repos: [],
       packages: [],
+      connected: Boolean(token),
+      relatedOrgs: [],
+      privateRepos: 0,
       error: "GitHub account not found or not publicly reachable",
     };
   }
 
+  const identity = token ? await githubIdentity(token) : null;
+  const relatedOrgs =
+    identity && !("error" in identity)
+      ? identity.orgs.filter(
+          (org) => org.toLowerCase() !== user.login.toLowerCase(),
+        )
+      : [];
+
   const perPage = token ? 30 : 8;
-  const scanLimit = token ? 12 : 5;
-  const repos =
-    (await githubJson<GithubRepo[]>(
-      `/users/${handle}/repos?per_page=${perPage}&sort=updated&type=owner`,
-      token,
-    )) ?? [];
+  const scanLimit = token ? 16 : 5;
+  const repos = await listGithubRepos(handle, user.type, token, perPage);
+
+  const unique = new Map<number, GithubRepo>();
+  for (const repo of repos) unique.set(repo.id, repo);
 
   const scanned = await Promise.all(
-    repos.slice(0, scanLimit).map(async (repo) => {
+    [...unique.values()].slice(0, scanLimit).map(async (repo) => {
       const [sensitiveHits, hasGitignore, pkg] = await Promise.all([
         Promise.all(
           SENSITIVE_PATHS.map(async (file) =>
@@ -367,7 +452,43 @@ export async function scanGithub(
     publicRepos: user.public_repos,
     repos: scanned,
     packages: [...new Set(scanned.flatMap((repo) => repo.packages))],
+    connected: Boolean(token),
+    relatedOrgs,
+    privateRepos: scanned.filter((repo) => repo.visibility === "private").length,
   };
+}
+
+async function listGithubRepos(
+  handle: string,
+  kind: GithubUser["type"],
+  token: string | undefined,
+  perPage: number,
+): Promise<GithubRepo[]> {
+  if (token && kind === "Organization") {
+    return (
+      (await githubJson<GithubRepo[]>(
+        `/orgs/${handle}/repos?per_page=${perPage}&sort=updated&type=all`,
+        token,
+      )) ?? []
+    );
+  }
+  if (token && kind === "User") {
+    const me = await githubJson<{ login: string }>("/user", token);
+    if (me?.login.toLowerCase() === handle.toLowerCase()) {
+      return (
+        (await githubJson<GithubRepo[]>(
+          `/user/repos?per_page=${perPage}&sort=updated&affiliation=owner`,
+          token,
+        )) ?? []
+      );
+    }
+  }
+  return (
+    (await githubJson<GithubRepo[]>(
+      `/users/${handle}/repos?per_page=${perPage}&sort=updated&type=owner`,
+      token,
+    )) ?? []
+  );
 }
 
 export function buildRisks(input: {
@@ -488,7 +609,7 @@ export function buildRisks(input: {
   }
 
   if (input.exposure) {
-    const { hostname, tls, httpsRedirect, spf, dmarc, dmarcPolicy, hostnames } =
+    const { hostname, tls, httpsRedirect, spf, dmarc, dmarcPolicy, hostnames, joined } =
       input.exposure;
 
     if (tls?.daysRemaining !== null && tls && tls.daysRemaining < 21) {
@@ -622,27 +743,36 @@ export function buildRisks(input: {
       });
     }
 
-    if (hostnames.length > 8) {
+    const joinedNames = joined?.length
+      ? joined
+      : [];
+    if (joinedNames.length) {
       risks.push({
-        fingerprint: `ct:surface:${hostname}`,
-        title: "Broad public hostname surface",
-        description: `Certificate transparency lists ${hostnames.length} hostnames under this domain.`,
+        fingerprint: `ct:joined:${hostname}`,
+        title: "Adjacent hostnames that join this company",
+        description: `${joinedNames
+          .map((item) => `${item.hostname} (${item.join})`)
+          .join("; ")}. ${hostnames.length} certificate names were observed; only names that join mail, staging, admin, payment, vendor or secret-adjacent surface are kept.`,
         category: "technology",
-        severity: "informational",
-        likelihood: 40,
-        impact: 45,
-        confidence: 80,
+        severity: joinedNames.some((item) =>
+          /vpn|admin|pay|staging|vault|git/.test(item.join),
+        )
+          ? "medium"
+          : "low",
+        likelihood: 55,
+        impact: 60,
+        confidence: 82,
         why_it_matters:
-          "Every public hostname is part of the attack surface. Forgotten staging or dev names often linger in certificates.",
+          "A dump of 200 subdomains is a scanner. A hostname that joins a vendor, a statute or a secret is intelligence.",
         recommendation:
-          "Review the hostname list, retire unused names, and keep development endpoints off the public internet.",
+          "Review joined names, retire unused staging or admin endpoints, and keep development hosts off the public internet.",
         owner_role: "Engineering",
         evidence: [
           {
             source_type: "certificate-transparency",
             source_reference: hostname,
-            content: `Observed hostnames: ${hostnames.slice(0, 15).join(", ")}`,
-            confidence: 80,
+            content: `Joined: ${joinedNames.map((item) => `${item.hostname} → ${item.join}`).join("; ")}. Total CT names observed: ${hostnames.length}.`,
+            confidence: 82,
             trust_status: "observed",
           },
         ],
@@ -679,17 +809,20 @@ export function buildRisks(input: {
     } else {
       const exposed = input.github.repos.filter((r) => r.sensitiveFiles.length);
       for (const repo of exposed) {
+        const vis = repo.visibility === "private" ? "private" : "public";
         risks.push({
           fingerprint: `github:sensitive:${repo.fullName}`,
-          title: `Potentially sensitive file in public repository ${repo.name}`,
-          description: `Public repository ${repo.fullName} contains file(s) that often hold secrets: ${repo.sensitiveFiles.join(", ")}. Contents were not stored.`,
+          title: `Potentially sensitive file in ${vis} repository ${repo.name}`,
+          description: `${vis === "private" ? "Private" : "Public"} repository ${repo.fullName} contains file(s) that often hold secrets: ${repo.sensitiveFiles.join(", ")}. Contents were not stored.`,
           category: "cybersecurity",
           severity: "critical",
-          likelihood: 85,
+          likelihood: vis === "private" ? 80 : 85,
           impact: 95,
-          confidence: 88,
+          confidence: vis === "private" ? 90 : 88,
           why_it_matters:
-            "Credential material in a public repository is one of the fastest paths to unauthorised access. VERIQ records the path only — not the secret.",
+            vis === "private"
+              ? "Hard secrets live in private repos and org membership. VERIQ records the path only — not the secret."
+              : "Credential material in a public repository is one of the fastest paths to unauthorised access. VERIQ records the path only — not the secret.",
           recommendation:
             "Remove the file from git history, rotate any credentials that may have been present, and add the path to .gitignore.",
           owner_role: "Engineering",
@@ -697,8 +830,8 @@ export function buildRisks(input: {
             {
               source_type: "github",
               source_reference: `${repo.url}`,
-              content: `Public file path(s) observed: ${repo.sensitiveFiles.join(", ")}. Secret values were not retrieved or stored.`,
-              confidence: 88,
+              content: `${vis} file path(s) observed: ${repo.sensitiveFiles.join(", ")}. Secret values were not retrieved or stored.`,
+              confidence: vis === "private" ? 90 : 88,
               trust_status: "observed",
             },
           ],
@@ -707,6 +840,33 @@ export function buildRisks(input: {
             owner_role: "Engineering",
             priority: "critical",
           },
+        });
+      }
+
+      if (input.github.connected && input.github.relatedOrgs.length) {
+        risks.push({
+          fingerprint: `github:related-orgs:${input.github.login}`,
+          title: "Connected GitHub identity belongs to related organisations",
+          description: `Sibling organisations observed for this connected identity: ${input.github.relatedOrgs.join(", ")}.`,
+          category: "technology",
+          severity: "informational",
+          likelihood: 40,
+          impact: 50,
+          confidence: 86,
+          why_it_matters:
+            "A public username is a demo. A connected org is intelligence — membership is where undeclared product surface often lives.",
+          recommendation:
+            "Confirm each related organisation is in this company's perimeter, or disconnect it.",
+          owner_role: "Engineering",
+          evidence: [
+            {
+              source_type: "github",
+              source_reference: input.github.login,
+              content: `Related organisations: ${input.github.relatedOrgs.join(", ")}. Token used once and discarded.`,
+              confidence: 86,
+              trust_status: "observed",
+            },
+          ],
         });
       }
 
@@ -1051,6 +1211,14 @@ export function buildRisks(input: {
     }
 
     if (trackers.length >= 2) {
+      const privacyClash = listContradictions({
+        privacyPolicyUrl: input.website?.privacyPolicyUrl ?? null,
+        privacyPolicyExcerpt: input.website?.privacyPolicyExcerpt ?? null,
+        vendors: map,
+        ai: input.ai,
+        finance: input.finance,
+      }).some((item) => item.fingerprint.startsWith("contradiction:") && item.category === "data");
+      if (!privacyClash) {
       risks.push({
         fingerprint: "vendor:trackers",
         title: "Multiple trackers on the public site",
@@ -1079,6 +1247,7 @@ export function buildRisks(input: {
           priority: "medium",
         },
       });
+      }
     }
 
     if (hosting.length === 1) {
@@ -1309,7 +1478,9 @@ export function buildRisks(input: {
   if (input.ai) {
     const ai = input.ai;
     if (ai.systems.length) {
-      if (ai.attested.inventory !== "yes" || ai.attested.humanOversight === "unknown") {
+      if (ai.attested.inventory === "no") {
+        // Contradiction finding is emitted below. Do not also raise a generic gap.
+      } else if (ai.attested.inventory !== "yes" || ai.attested.humanOversight === "unknown") {
         risks.push({
           fingerprint: "ai:governance-gap",
           title: "Observed AI without attested governance",
@@ -1457,6 +1628,39 @@ export function buildRisks(input: {
     }
   }
 
+  const contradictions = listContradictions({
+    privacyPolicyUrl: input.website?.privacyPolicyUrl ?? null,
+    privacyPolicyExcerpt: input.website?.privacyPolicyExcerpt ?? null,
+    vendors: input.vendors,
+    ai: input.ai,
+    finance: input.finance,
+  });
+  for (const item of contradictions) {
+    risks.push({
+      fingerprint: item.fingerprint,
+      title: item.title,
+      description: item.description,
+      category: item.category,
+      severity: item.severity,
+      likelihood: item.likelihood,
+      impact: item.impact,
+      confidence: item.confidence,
+      why_it_matters: item.why_it_matters,
+      recommendation: item.recommendation,
+      owner_role: item.owner_role,
+      evidence: [
+        {
+          source_type: "integrity",
+          source_reference: item.fingerprint,
+          content: item.evidence,
+          confidence: item.confidence,
+          trust_status: item.trust_status,
+        },
+      ],
+      action: item.action,
+    });
+  }
+
   if (!input.website && !input.github) {
     risks.push({
       fingerprint: "model:insufficient-evidence",
@@ -1523,7 +1727,7 @@ export function scoreFromRisks(risks: DraftRisk[]) {
   const financial = dimension(["financial"], 74);
   const data = dimension(["data", "regulatory"], 67);
   const ai = dimension(["ai"], 72);
-  const reputation = dimension(["reputation", "technology"], 76);
+  const reputation = dimension(["reputation", "integrity", "technology"], 76);
 
   const overall = Math.round(
     cybersecurity * 0.2 +

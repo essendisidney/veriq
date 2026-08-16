@@ -25,6 +25,28 @@ export function certaintyFor(input: {
   return "potential";
 }
 
+export function certaintyWhy(input: {
+  certainty: Certainty;
+  confidence: number;
+  evidence: { trust_status: TrustStatus }[];
+}) {
+  if (input.certainty === "informational") {
+    return "This is a notice, not a material incident. VERIQ is not asserting harm.";
+  }
+  const observed = input.evidence.filter((item) => item.trust_status === "observed").length;
+  const inferred = input.evidence.filter((item) => item.trust_status === "inferred").length;
+  const unknown = input.evidence.filter((item) => item.trust_status === "unknown").length;
+  if (input.certainty === "confirmed") {
+    return `Confirmed because every evidence row is OBSERVED and confidence is ${input.confidence}%. VERIQ still does not invent impact amounts.`;
+  }
+  const mix = [
+    observed ? `${observed} OBSERVED` : null,
+    inferred ? `${inferred} INFERRED` : null,
+    unknown ? `${unknown} UNKNOWN` : null,
+  ].filter(Boolean);
+  return `Potential because the evidence mix is ${mix.join(", ") || "thin"} (confidence ${input.confidence}%). Confirmed requires every row OBSERVED at 75% confidence or higher.`;
+}
+
 export function slaDeadlineIso(priority: "critical" | "high" | "medium" | "low") {
   const hours = { critical: 24, high: 168, medium: 720, low: 2160 } as const;
   return new Date(Date.now() + hours[priority] * 3_600_000).toISOString();

@@ -8,6 +8,7 @@ import type { VendorMap } from "@/lib/vendors/assess";
 import type { RiskGraph } from "@/lib/graph/build";
 import type { ScenarioResult } from "@/lib/scenarios/simulate";
 import type { Exposure } from "@/lib/scan/exposure";
+import type { IntegrityAssessment } from "@/lib/integrity/assess";
 import { SCORE_DIMENSIONS, industryLabel, countryLabel } from "@/lib/utils";
 import { isOverdue, staleDays } from "@/lib/risk/certainty";
 import { PACK_COPY, type PackKind } from "@/lib/reports/pack";
@@ -31,6 +32,7 @@ export type ReportBundle = {
   scenarios: ScenarioResult[];
   exposure: Exposure | null;
   snapshot: ScanSnapshot | null;
+  integrity: IntegrityAssessment | null;
 };
 
 export type PillarStatus = "strong" | "adequate" | "weak" | "unknown";
@@ -536,6 +538,10 @@ function collectUnknowns(bundle: ReportBundle, kind: PackKind): string[] {
     head,
     ...extras,
     ...(bundle.finance?.unknowns.slice(0, 4) ?? []),
+    ...(bundle.integrity?.records
+      .filter((item) => item.status === "unknown")
+      .slice(0, 2)
+      .map((item) => item.title) ?? []),
     ...(bundle.ai?.unknowns.slice(0, 3) ?? ["Whether AI is used at all"]),
     "Whether the company serves the EU market",
     "Incident-notification playbook",
@@ -564,6 +570,11 @@ function collectQuestions(
       question: "Who owns AI inventory, human oversight and training-data clauses?",
       why: "Shadow AI is common. Absence of ChatGPT or Copilot is not assumed.",
       href: "/ai",
+    });
+    questions.push({
+      question: "Is beneficial ownership on a public register, or still UNKNOWN — and does the privacy notice name the trackers on the site?",
+      why: "Shell companies and undeclared processors are found by joining public records to the company surface. VERIQ will not invent a PEP or an EACC case.",
+      href: "/integrity",
     });
   } else if (kind === "credit") {
     questions.push({

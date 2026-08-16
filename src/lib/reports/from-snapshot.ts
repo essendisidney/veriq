@@ -4,6 +4,7 @@ import { assessFinance, DEFAULT_ATTESTED } from "@/lib/finance/assess";
 import type { AiAssessment } from "@/lib/ai/assess";
 import type { ChangeSet, ScanSnapshot } from "@/lib/changes/diff";
 import type { WorldAssessment } from "@/lib/world/assess";
+import type { IntegrityAssessment } from "@/lib/integrity/assess";
 import type { Exposure } from "@/lib/scan/exposure";
 import type { RegulationAssessment } from "@/lib/regulations/assess";
 import type { VendorMap } from "@/lib/vendors/assess";
@@ -28,6 +29,7 @@ type ScanSummary = {
   ai?: AiAssessment;
   changes?: ChangeSet;
   world?: WorldAssessment;
+  integrity?: IntegrityAssessment;
   snapshot?: ScanSnapshot;
   risks?: number;
 };
@@ -67,6 +69,7 @@ export function bundleFromSnapshot(payload: ApiSnapshotPayload): ReportBundle | 
     }),
     exposure: latest.exposure ?? null,
     snapshot: latest.snapshot ?? null,
+    integrity: latest.integrity ?? null,
   };
 }
 

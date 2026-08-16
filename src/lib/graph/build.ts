@@ -408,7 +408,26 @@ function correlate(input: {
   const trackers = input.vendorIds.filter(
     (item) => item.category === "analytics" || item.category === "ads",
   );
-  if (trackers.length >= 2 && input.appId && input.privacyRegs[0]) {
+  const privacyClash = input.risks.find(
+    (item) =>
+      item.fingerprint === "contradiction:privacy-trackers" ||
+      item.fingerprint === "contradiction:undeclared-trackers",
+  );
+  if (trackers.length && input.appId && privacyClash) {
+    paths.push({
+      id: "corr:notice-vs-trackers",
+      title: "Privacy notice versus observed trackers",
+      severity: "high",
+      reason:
+        "Processors on the public site contradict the observed notice — or there is no notice. That join is the finding.",
+      nodes: [
+        input.appId,
+        ...trackers.slice(0, 3).map((item) => item.id),
+        ...(input.privacyRegs[0] ? [input.privacyRegs[0]] : []),
+        riskNodeId(privacyClash.fingerprint),
+      ],
+    });
+  } else if (trackers.length >= 2 && input.appId && input.privacyRegs[0]) {
     paths.push({
       id: "corr:trackers-privacy",
       title: "Trackers under a privacy statute",
@@ -416,6 +435,24 @@ function correlate(input: {
       reason:
         "Multiple analytics or advertising vendors on the public site are data processors for the mapped privacy regulation.",
       nodes: [input.appId, ...trackers.slice(0, 3).map((item) => item.id), input.privacyRegs[0]],
+    });
+  }
+
+  const aiDenial = input.risks.find(
+    (item) => item.fingerprint === "contradiction:ai-inventory",
+  );
+  if (aiDenial && input.aiIds[0]) {
+    paths.push({
+      id: "corr:ai-contradiction",
+      title: "Attested no AI versus observed systems",
+      severity: "high",
+      reason:
+        "The inventory said there is no AI. Observed systems on the site or in the lockfile contradict that.",
+      nodes: [
+        "company",
+        ...input.aiIds.slice(0, 3).map((item) => item.id),
+        riskNodeId(aiDenial.fingerprint),
+      ],
     });
   }
 

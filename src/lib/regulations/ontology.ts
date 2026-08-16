@@ -80,6 +80,23 @@ const ADVOCATES_EVIDENCE: EvidenceNeed[] = [
   { key: "client_cdd", label: "Client intake / CDD for designated work", control: "aml", kind: "attested" },
 ];
 
+const INTEGRITY_EVIDENCE: EvidenceNeed[] = [
+  { key: "conflict_register", label: "Conflict-of-interest register", control: "corporate_governance", kind: "attested" },
+  { key: "gifts_hospitality", label: "Gifts and hospitality register", control: "corporate_governance", kind: "attested" },
+  { key: "procurement_file", label: "Procurement / related-party file", control: "aml", kind: "attested" },
+];
+
+const BENEFICIAL_OWNERSHIP_EVIDENCE: EvidenceNeed[] = [
+  { key: "beneficial_ownership_filing", label: "Beneficial-ownership filing", control: "corporate_governance", kind: "attested" },
+  { key: "psc_register", label: "Persons-with-significant-control record", control: "corporate_governance", kind: "attested" },
+];
+
+const PROCUREMENT_EVIDENCE: EvidenceNeed[] = [
+  { key: "tender_file", label: "Tender file / evaluation record", control: "corporate_governance", kind: "attested" },
+  { key: "award_notice", label: "Award notice where required", control: "corporate_governance", kind: "attested" },
+  { key: "beneficial_ownership_tender", label: "Beneficial ownership on the tender", control: "aml", kind: "attested" },
+];
+
 const ALL = "*";
 
 export const REGULATION_CATALOG: RegulationDef[] = [
@@ -169,6 +186,45 @@ export const REGULATION_CATALOG: RegulationDef[] = [
     evidence: ADVOCATES_EVIDENCE,
     impact:
       "A firm that cannot evidence practising standing, client-account segregation or intake CDD creates mandate, insurance and LSK risk. This is not a disciplinary finding.",
+  },
+  {
+    code: "KE-ACECA",
+    name: "Anti-Corruption and Economic Crimes Act",
+    jurisdiction: "KE",
+    category: "integrity",
+    summary:
+      "Kenya’s standing anti-corruption and economic-crimes framework, including conflict, gifts and abuse-of-office duties. Mapped as a public regime — not a finding that this company or any person is corrupt.",
+    industries: ALL,
+    controls: ["corporate_governance", "aml"],
+    evidence: INTEGRITY_EVIDENCE,
+    impact:
+      "Institutions ask whether conflict, gifts and related-party files exist. Absence is UNKNOWN evidence, not an EACC allegation. VERIQ will not invent corruption.",
+  },
+  {
+    code: "KE-BO",
+    name: "Companies Act beneficial-ownership duties",
+    jurisdiction: "KE",
+    category: "governance",
+    summary:
+      "Beneficial-ownership filing and persons-with-significant-control duties under Kenya company law. Where the register is published it is a public fact; VERIQ does not scrape it.",
+    industries: ALL,
+    controls: ["corporate_governance"],
+    evidence: BENEFICIAL_OWNERSHIP_EVIDENCE,
+    impact:
+      "Unattested beneficial ownership is a diligence gap. VERIQ will not invent shareholders, PEPs or a shell-company finding.",
+  },
+  {
+    code: "KE-PPADA",
+    name: "Public Procurement and Asset Disposal Act",
+    jurisdiction: "KE",
+    category: "integrity",
+    summary:
+      "Public procurement, evaluation and award duties for public entities in Kenya. Mapped to public-sector organisations — not a finding that a tender was irregular.",
+    industries: ["public_sector"],
+    controls: ["corporate_governance", "aml", "financial_controls"],
+    evidence: PROCUREMENT_EVIDENCE,
+    impact:
+      "A public entity that cannot evidence the tender file creates audit and integrity risk. This is not a PPRA or EACC finding.",
   },
   {
     code: "KE-CONSUMER",

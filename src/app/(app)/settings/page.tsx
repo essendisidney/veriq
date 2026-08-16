@@ -90,8 +90,11 @@ export default function SettingsPage() {
             onChange={(e) => setGithubLogin(e.target.value)}
           />
           <p className="mt-1 text-xs text-[var(--muted)]">
-            Public username still works. Connect GitHub to scan with a higher
-            rate limit. The token is used once and discarded.
+            Public username still works as a demo. Connect GitHub to scan private
+            repositories and organisation membership — that is where the hard
+            secrets live. GitHub does not offer a read-only private-repo OAuth
+            scope, so VERIQ requests <code>repo</code>, uses GET only, and
+            discards the token after the scan.
           </p>
           <a
             href={`/api/github/connect?org=${currentOrg.id}`}

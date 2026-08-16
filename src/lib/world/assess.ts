@@ -126,6 +126,10 @@ function relevanceFor(
       relevance = ctx.packageCount >= 8 ? "material" : "watch";
       reasons.push(`${ctx.packageCount} packages were observed in scanned manifests.`);
     }
+  } else if (def.id === "pep-sanctions-unknown") {
+    relevance = "unknown";
+    reasons.push("VERIQ does not operate PEP, sanctions or leak databases. Status is UNKNOWN.");
+    trustStatus = "unknown";
   } else if (def.id === "eu-ai-act") {
     if (ctx.hasAi) {
       relevance = ctx.country === "GB" ? "watch" : "unknown";

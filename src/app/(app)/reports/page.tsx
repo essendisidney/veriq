@@ -65,6 +65,12 @@ const reports = [
     description: "Scenarios, payment concentration and key-person bands. Impact amounts UNKNOWN.",
   },
   {
+    href: "/reports/integrity",
+    title: "Integrity / public-records report",
+    description:
+      "Observed notices versus trackers, connected GitHub, and Kenya registers that stay UNKNOWN until they are actually public. Not an EACC finding.",
+  },
+  {
     href: "/world",
     title: "External world watch",
     description:

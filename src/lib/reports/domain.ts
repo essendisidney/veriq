@@ -11,6 +11,7 @@ export const DOMAIN_KINDS = [
   "technology",
   "ai",
   "resilience",
+  "integrity",
 ] as const;
 
 export type DomainKind = (typeof DOMAIN_KINDS)[number];
@@ -77,6 +78,12 @@ const META: Record<
     audience: "COO, risk and lenders",
     disclaimer:
       "Scenarios are inferred from the company model. Financial impact amounts remain UNKNOWN.",
+  },
+  integrity: {
+    title: "Integrity and public-records report",
+    audience: "Compliance, counsel, banks and public institutions",
+    disclaimer:
+      "Public registers VERIQ cannot query stay UNKNOWN. This is not an EACC finding, not a PEP hit, and not a claim that anyone is corrupt.",
   },
 };
 
@@ -363,6 +370,42 @@ const builders: Record<DomainKind, (bundle: ReportBundle) => Built> = {
         "Insurance cover",
         ...(bundle.finance?.unknowns.slice(0, 3) ?? []),
       ],
+    };
+  },
+  integrity: (bundle) => {
+    const findings = bundle.risks.filter(
+      (item) =>
+        item.fingerprint.startsWith("contradiction:") ||
+        item.category === "integrity" ||
+        item.fingerprint.startsWith("reg:missing-evidence:KE-ACECA") ||
+        item.fingerprint.startsWith("reg:missing-evidence:KE-BO") ||
+        item.fingerprint.startsWith("reg:missing-evidence:KE-PPADA"),
+    );
+    const recs = bundle.integrity?.records ?? [];
+    return {
+      score: bundle.score!.reputation,
+      scoreLabel: "Reputation / integrity",
+      summary:
+        bundle.integrity?.summary ??
+        "Public registers are UNKNOWN until observed. VERIQ will not invent corruption, a shell company or an unlicensed rail.",
+      metrics: [
+        { label: "Reputation score", value: String(bundle.score!.reputation) },
+        { label: "Contradictions", value: String(bundle.integrity?.contradictions.length ?? findings.filter((item) => item.fingerprint.startsWith("contradiction:")).length) },
+        { label: "Observed records", value: String(bundle.integrity?.observed ?? 0) },
+        { label: "Unknown registers", value: String(bundle.integrity?.unknown ?? recs.filter((item) => item.status === "unknown").length) },
+        { label: "Watch regimes", value: String(bundle.integrity?.watch ?? 0) },
+        { label: "Joined hostnames", value: String(bundle.exposure?.joined?.length ?? 0) },
+      ],
+      flags: findingFlags(findings, () => true),
+      table: {
+        title: "Public records",
+        columns: ["Record", "Status", "Source"],
+        records: recs.slice(0, 12).map((item) => [item.title, item.status, item.source]),
+      },
+      unknowns: recs
+        .filter((item) => item.status === "unknown")
+        .slice(0, 8)
+        .map((item) => item.title),
     };
   },
 };
