@@ -116,8 +116,8 @@ export default function PassportPage() {
             profile={trust}
           />
           <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
-            <p className="text-xs uppercase tracking-wide text-[var(--muted)]">Decision</p>
-            <p className="mt-2 font-display text-4xl">{TRUST_CALL_LABELS[passport.call]}</p>
+            <p className="eyebrow">Decision</p>
+            <p className="mt-3 font-display text-5xl italic">{TRUST_CALL_LABELS[passport.call]}</p>
             <ul className="mt-6 space-y-3">
               {passport.dimensions.map((item) => (
                 <li

@@ -145,7 +145,7 @@ function AnswerCard({ answer }: { answer: AskAnswer }) {
   return (
     <section className="space-y-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
       <Badge variant="muted">{answer.intent}</Badge>
-      <p className="font-display text-4xl" style={{ color: color[answer.call] }}>
+      <p className="font-display text-5xl italic" style={{ color: color[answer.call] }}>
         {TRUST_CALL_LABELS[answer.call]}
       </p>
       <p className="text-sm leading-6 text-[var(--ink)]">{answer.headline}</p>

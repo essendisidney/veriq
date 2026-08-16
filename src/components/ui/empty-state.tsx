@@ -17,7 +17,7 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)] px-6 py-14 text-center",
+        "flex flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)] px-6 py-16 text-center",
         className,
       )}
     >
@@ -26,9 +26,9 @@ export function EmptyState({
           <Icon className="h-5 w-5 text-[var(--muted)]" />
         </div>
       )}
-      <h3 className="font-display text-xl text-[var(--ink)]">{title}</h3>
+      <h3 className="font-display text-2xl italic text-[var(--ink)]">{title}</h3>
       {description && (
-        <p className="mt-1 max-w-sm text-sm text-[var(--muted)]">
+        <p className="mt-2 max-w-sm text-sm leading-6 text-[var(--muted)]">
           {description}
         </p>
       )}

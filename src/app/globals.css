@@ -1,19 +1,19 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #07090e;
-  --surface: #0e1219;
-  --elevated: #151b26;
-  --border: #243044;
-  --ink: #f2f5fa;
-  --muted: #8a93a6;
-  --accent: #3ee0c5;
-  --accent-dim: rgba(62, 224, 197, 0.12);
-  --critical: #ff4d6d;
-  --high: #ff8a4c;
-  --medium: #f5c542;
-  --low: #7dd3fc;
-  --good: #3ee0c5;
+  --bg: #08090c;
+  --surface: #101218;
+  --elevated: #171b22;
+  --border: #2a303c;
+  --ink: #f4f0e8;
+  --muted: #9a9388;
+  --accent: #6ee7d0;
+  --accent-dim: rgba(110, 231, 208, 0.1);
+  --critical: #ff5a73;
+  --high: #ff8f5a;
+  --medium: #e8c56b;
+  --low: #8ec8e8;
+  --good: #6ee7d0;
 }
 
 @theme inline {
@@ -30,7 +30,7 @@
   --color-medium: var(--medium);
   --color-low: var(--low);
   --color-good: var(--good);
-  --font-sans: var(--font-geist);
+  --font-sans: var(--font-instrument);
   --font-display: var(--font-newsreader);
 }
 
@@ -44,22 +44,28 @@ html {
 
 body {
   min-height: 100%;
-  background: var(--bg);
+  background:
+    radial-gradient(1200px 520px at 88% -8%, rgba(110, 231, 208, 0.08), transparent 52%),
+    var(--bg);
   color: var(--ink);
-  font-family: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-instrument), ui-sans-serif, system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
   font-feature-settings: "ss01", "cv11", "kern";
-  letter-spacing: -0.011em;
+  letter-spacing: -0.012em;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 h1,
 h2,
 h3,
 .font-display {
-  font-family: var(--font-newsreader), "Times New Roman", serif;
+  font-family: var(--font-newsreader), "Iowan Old Style", "Palatino Linotype", serif;
   font-optical-sizing: auto;
   font-feature-settings: "kern", "liga", "onum";
-  letter-spacing: -0.025em;
+  letter-spacing: -0.03em;
+  line-height: 1.12;
 }
 
 h1,
@@ -74,16 +80,31 @@ h3 {
   font-weight: 500;
 }
 
+.eyebrow {
+  font-family: var(--font-instrument), ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.prose-muted {
+  color: var(--muted);
+  line-height: 1.7;
+}
+
 :focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline-offset: 3px;
 }
 
 input,
 select,
-textarea {
+textarea,
+button {
   font-family: inherit;
-  letter-spacing: 0;
+  letter-spacing: -0.011em;
 }
 
 ::selection {

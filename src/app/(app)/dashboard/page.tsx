@@ -237,30 +237,28 @@ export default function DashboardPage() {
         />
       ) : (
         <div className="grid gap-6 xl:grid-cols-[280px_1fr]">
-          <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
-            <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
-              VERIQ Trust Profile
-            </p>
+          <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-7">
+            <p className="eyebrow">VERIQ Trust Profile</p>
             <p
-              className="mt-3 font-display text-7xl leading-none"
+              className="mt-4 font-display text-7xl italic leading-none"
               style={{ color: toneColor }}
             >
               {score.overall}
             </p>
-            <p className="mt-1 text-sm text-[var(--muted)]">Risk / 100</p>
+            <p className="mt-2 text-sm text-[var(--muted)]">Risk / 100</p>
             {trust && (
-              <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="mt-5 grid grid-cols-2 gap-3">
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-[var(--muted)]">
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-[var(--muted)]">
                     Evidence
                   </p>
-                  <p className="font-display text-3xl">{trust.evidence}</p>
+                  <p className="font-display text-3xl italic">{trust.evidence}</p>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-[var(--muted)]">
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-[var(--muted)]">
                     Confidence
                   </p>
-                  <p className="font-display text-3xl">{trust.confidence}%</p>
+                  <p className="font-display text-3xl italic">{trust.confidence}%</p>
                 </div>
               </div>
             )}

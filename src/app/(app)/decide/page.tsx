@@ -110,8 +110,8 @@ export default function DecidePage() {
         />
       ) : (
         <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
-          <p className="text-xs uppercase tracking-wide text-[var(--muted)]">{meta.title}</p>
-          <p className="mt-2 font-display text-4xl">{TRUST_CALL_LABELS[answer.call]}</p>
+          <p className="eyebrow">{meta.title}</p>
+          <p className="mt-3 font-display text-5xl italic">{TRUST_CALL_LABELS[answer.call]}</p>
           <p className="mt-3 text-sm leading-6 text-[var(--ink)]">{answer.headline}</p>
           <h2 className="mt-6 text-xs uppercase tracking-wide text-[var(--muted)]">What to do</h2>
           <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">

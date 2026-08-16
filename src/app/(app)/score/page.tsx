@@ -102,11 +102,9 @@ export default function ScorePage() {
         />
       ) : (
         <div className="space-y-6">
-          <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
-            <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
-              Risk score
-            </p>
-            <p className="mt-3 font-display text-7xl leading-none" style={{ color: toneColor }}>
+          <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-7">
+            <p className="eyebrow">Risk score</p>
+            <p className="mt-4 font-display text-7xl italic leading-none" style={{ color: toneColor }}>
               {score.overall}
             </p>
             <p className="mt-3 text-sm leading-6 text-[var(--muted)]">{explained.summary}</p>
@@ -193,7 +191,7 @@ function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <p className="text-xs uppercase tracking-wide text-[var(--muted)]">{label}</p>
-      <p className="mt-1 font-display text-3xl">{value}</p>
+      <p className="mt-1 font-display text-3xl italic">{value}</p>
     </div>
   );
 }

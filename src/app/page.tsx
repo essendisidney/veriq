@@ -2,15 +2,34 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { CompanySearch } from "@/components/company-search";
+import { MarketingHeader } from "@/components/brand-mark";
+
+const FEATURES = [
+  {
+    n: "01",
+    title: "Challenge",
+    body: "Try to disprove the company’s claims. Inferences stay inferences. Unknown stays unknown.",
+  },
+  {
+    n: "02",
+    title: "Passport",
+    body: "A living evidence picture you can share. Not a certificate that the company is safe.",
+  },
+  {
+    n: "03",
+    title: "Monitor",
+    body: "What changed since the last review — when you open the brief. Nothing scans in silence.",
+  },
+];
 
 const LADDER = [
-  { name: "VERIQ Free", detail: "Quick public-site scan. Should I trust this company?" },
-  { name: "VERIQ Pro", detail: "Claim ledger, evidence score, Challenge, Passport." },
-  { name: "VERIQ DD", detail: "Deep due diligence packs for investors, lenders and counsel." },
-  { name: "VERIQ Monitor", detail: "Tell me when something material changes — in this session, not a silent worker." },
-  { name: "VERIQ Enterprise", detail: "Portfolio brief, decision rooms, API." },
-  { name: "VERIQ Passport", detail: "A living evidence picture companies can share. Not a safety certificate." },
-  { name: "VERIQ API", detail: "Banks, fintechs, insurers and procurement systems call VERIQ inside their workflow." },
+  { name: "Free", detail: "Public-site scan. Proceed, Investigate or Stop." },
+  { name: "Pro", detail: "Claim ledger, evidence score, Challenge, Passport." },
+  { name: "DD", detail: "Due diligence packs for investors, lenders and counsel." },
+  { name: "Monitor", detail: "Material change, in this session — not a silent worker." },
+  { name: "Enterprise", detail: "Portfolio brief, decision rooms, API." },
+  { name: "Passport", detail: "A living picture companies can share. Not a safety stamp." },
+  { name: "API", detail: "Banks, insurers and procurement call VERIQ inside their workflow." },
 ];
 
 export default async function HomePage() {
@@ -27,69 +46,55 @@ export default async function HomePage() {
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            "radial-gradient(1200px 500px at 80% -10%, rgba(62,224,197,0.16), transparent 55%), radial-gradient(800px 400px at 0% 100%, rgba(125,211,252,0.08), transparent 50%)",
+            "radial-gradient(900px 420px at 82% -12%, rgba(110,231,208,0.14), transparent 55%), radial-gradient(640px 360px at 8% 108%, rgba(232,197,107,0.06), transparent 50%)",
         }}
         aria-hidden
       />
-      <header className="relative z-10 flex items-center justify-between px-6 py-5 md:px-10">
-        <span className="font-display text-2xl tracking-tight text-[var(--ink)]">VERIQ</span>
-        <div className="flex items-center gap-3">
-          <Link href="/login" className="text-sm font-medium text-[var(--muted)] hover:text-[var(--ink)]">
-            Sign in
-          </Link>
-          <Link
-            href="/signup"
-            className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[var(--bg)] hover:opacity-90"
-          >
-            Unlock full analysis
-          </Link>
-        </div>
-      </header>
+      <MarketingHeader />
 
-      <main className="relative z-10 mx-auto flex w-full max-w-5xl flex-1 flex-col justify-center px-6 pb-20 md:px-10">
-        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--accent)]">
-          Before you trust a company, VERIQ it.
-        </p>
-        <h1 className="mt-5 max-w-3xl font-display text-5xl font-medium italic leading-[1.08] text-[var(--ink)] md:text-7xl">
+      <main className="relative z-10 mx-auto flex w-full max-w-6xl flex-1 flex-col px-6 pb-24 pt-10 md:px-10 md:pt-16">
+        <p className="eyebrow">Before you trust a company, VERIQ it.</p>
+        <h1 className="mt-6 max-w-[14ch] font-display text-[3.15rem] font-medium italic leading-[1.04] text-[var(--ink)] md:text-[5.25rem]">
           Should I trust this company?
         </h1>
-        <p className="mt-6 max-w-xl text-base text-[var(--muted)] md:text-lg">
+        <p className="mt-7 max-w-xl text-[17px] leading-8 text-[var(--muted)]">
           Paste a website. In seconds VERIQ shows Proceed, Investigate or Stop — from evidence,
           not a KYB list. We do not scrape BRS, LinkedIn or a registry by name.
         </p>
-        <div className="mt-10">
+        <div className="mt-12">
           <CompanySearch size="hero" />
         </div>
-        <p className="mt-4 text-sm text-[var(--muted)]">
-          Challenge the story. Share a Passport. Watch what changes. Sign up to unlock the rest.
+        <p className="mt-5 max-w-xl text-sm leading-6 text-[var(--muted)]">
+          Challenge the story. Share a Passport. Watch what changes.{" "}
+          <Link href="/signup" className="text-[var(--ink)] underline decoration-[var(--border)] underline-offset-4 hover:decoration-[var(--accent)]">
+            Sign up to unlock the rest
+          </Link>
+          .
         </p>
 
-        <section className="mt-20 grid gap-4 sm:grid-cols-3">
-          <Feature title="VERIQ Challenge" body="Try to disprove the company's claims. Inferences stay inferences." />
-          <Feature title="VERIQ Passport" body="A living evidence picture you can share. Not a certificate of safety." />
-          <Feature title="VERIQ Monitor" body="What changed since the last review — when you open the brief." />
+        <section className="mt-24 grid gap-px overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--border)] sm:grid-cols-3">
+          {FEATURES.map((item) => (
+            <article key={item.n} className="bg-[var(--surface)] p-7">
+              <p className="font-display text-sm italic text-[var(--accent)]">{item.n}</p>
+              <h2 className="mt-3 font-display text-2xl italic text-[var(--ink)]">{item.title}</h2>
+              <p className="mt-3 text-sm leading-7 text-[var(--muted)]">{item.body}</p>
+            </article>
+          ))}
         </section>
 
-        <section className="mt-16">
-          <h2 className="font-display text-2xl">The ladder</h2>
-          <ul className="mt-4 space-y-3">
+        <section className="mt-20">
+          <p className="eyebrow">The ladder</p>
+          <h2 className="mt-3 font-display text-3xl italic">Start with one company.</h2>
+          <ul className="mt-8 grid gap-x-10 gap-y-5 sm:grid-cols-2">
             {LADDER.map((item) => (
-              <li key={item.name} className="text-sm leading-6 text-[var(--muted)]">
-                <span className="font-medium text-[var(--ink)]">{item.name}.</span> {item.detail}
+              <li key={item.name} className="border-t border-[var(--border)] pt-4">
+                <p className="text-[13px] font-medium text-[var(--ink)]">VERIQ {item.name}</p>
+                <p className="mt-1 text-sm leading-6 text-[var(--muted)]">{item.detail}</p>
               </li>
             ))}
           </ul>
         </section>
       </main>
-    </div>
-  );
-}
-
-function Feature({ title, body }: { title: string; body: string }) {
-  return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
-      <p className="font-display text-xl text-[var(--ink)]">{title}</p>
-      <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{body}</p>
     </div>
   );
 }

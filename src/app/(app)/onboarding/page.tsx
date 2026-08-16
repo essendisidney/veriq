@@ -48,21 +48,19 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[var(--bg)] px-4 py-10">
+    <div className="flex min-h-screen items-center justify-center bg-[var(--bg)] px-4 py-16">
       <div className="w-full max-w-lg">
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--accent)]">
-          VERIQ
-        </p>
-        <h1 className="mt-2 font-display text-3xl text-[var(--ink)]">
-          Create the company model
+        <p className="eyebrow">The company model</p>
+        <h1 className="mt-3 font-display text-4xl italic text-[var(--ink)]">
+          Create the company you want to VERIQ
         </h1>
-        <p className="mt-2 text-sm text-[var(--muted)]">
-          Name, website, country, industry, GitHub. Then we scan for evidence.
+        <p className="mt-3 text-[15px] leading-7 text-[var(--muted)]">
+          Name, website, country, industry, GitHub. Then we scan for evidence — not a KYB dump.
         </p>
 
         <form
           onSubmit={handleSubmit}
-          className="mt-8 space-y-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6"
+          className="mt-8 space-y-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-7"
         >
           {error && (
             <div className="rounded-lg bg-[rgba(255,77,109,0.12)] px-3 py-2 text-sm text-[var(--critical)]">
@@ -96,7 +94,7 @@ export default function OnboardingPage() {
                 id="country"
                 value={country}
                 onChange={(e) => setCountry(e.target.value)}
-                className="flex h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--elevated)] px-3 text-sm text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none"
+                className="flex h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--elevated)] px-3.5 text-sm text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none"
               >
                 {COUNTRIES.map((c) => (
                   <option key={c.value} value={c.value}>
@@ -111,7 +109,7 @@ export default function OnboardingPage() {
                 id="industry"
                 value={industry}
                 onChange={(e) => setIndustry(e.target.value)}
-                className="flex h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--elevated)] px-3 text-sm text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none"
+                className="flex h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--elevated)] px-3.5 text-sm text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none"
               >
                 {INDUSTRIES.map((i) => (
                   <option key={i.value} value={i.value}>

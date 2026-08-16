@@ -52,19 +52,17 @@ export default async function AppLayout({
     return (
       <div className="flex min-h-screen items-center justify-center bg-[var(--bg)] px-4">
         <div className="w-full max-w-md rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--accent)]">
-            VERIQ
-          </p>
-          <h1 className="mt-2 font-display text-3xl text-[var(--ink)]">
+          <p className="eyebrow">VERIQ</p>
+          <h1 className="mt-3 font-display text-4xl italic text-[var(--ink)]">
             Create your company
           </h1>
-          <p className="mt-2 text-sm text-[var(--muted)]">
+          <p className="mt-3 text-[15px] leading-7 text-[var(--muted)]">
             Every organisation gets a living risk model — start with a name,
             website and GitHub source.
           </p>
           <Link
             href="/onboarding"
-            className="mt-6 inline-flex w-full items-center justify-center rounded-xl bg-[var(--accent)] px-4 py-3 text-sm font-medium text-[var(--bg)]"
+            className="mt-7 inline-flex w-full items-center justify-center rounded-full bg-[var(--accent)] px-4 py-3 text-sm font-medium text-[var(--bg)]"
           >
             Set up company
           </Link>

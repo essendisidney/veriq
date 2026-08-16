@@ -14,10 +14,8 @@ export const dynamic = "force-dynamic";
 function Unavailable({ title }: { title: string }) {
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-8">
-      <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--accent)]">
-        VERIQ
-      </p>
-      <h1 className="mt-3 font-display text-3xl">{title}</h1>
+      <p className="eyebrow">VERIQ</p>
+      <h1 className="mt-3 font-display text-3xl italic">{title}</h1>
       <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
         This pack is unavailable, expired, or has been revoked. Ask the company to send a new
         link. VERIQ will not invent a score.
@@ -76,7 +74,7 @@ export default async function PublicSharePage({
           />
         )}
         <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
-          <p className="font-display text-4xl">{TRUST_CALL_LABELS[passport.call]}</p>
+          <p className="font-display text-5xl italic">{TRUST_CALL_LABELS[passport.call]}</p>
           <ul className="mt-6 space-y-3">
             {passport.dimensions.map((item) => (
               <li key={item.id} className="rounded-xl border border-[var(--border)] bg-[var(--elevated)] p-4">
