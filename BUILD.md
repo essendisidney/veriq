@@ -6,6 +6,27 @@ Companion to [`VERIQ.md`](./VERIQ.md). That file is the product bible. This file
 
 ---
 
+## 0. VERIQ 2.0 — Organizational Truth & Financial Intelligence
+
+Positioning:
+
+> **VERIQ — The Organizational Truth & Intelligence Engine.**  
+> Know the company. Understand the money. Detect the risk. Find what others miss.
+
+Not KYB. Not GRC. Not an auditor, lawyer, or credit bureau. One core engine plus **sector audit packs**. Kenya-first, country-agnostic.
+
+**Do not rewrite the running app.** Evolve this spine:
+
+Company → ingest (APIs, authorised vault, polite digger) → entity resolution → evidence graph → financial / anomaly / contradiction / pack rules → risk → AI explanation → score → Ask VeriQ → monitor.
+
+AI sits above deterministic engines. Observation is never a fact. Every material finding is Finding → Evidence → Source → Timestamp → Confidence → Validation status.
+
+**First wedge:** any-org / SME self-serve on authorised uploads (the two-source amount contradiction). Sector packs after that demo works on real Kenyan companies. SACCO/MFI/NGO/school/hospital catalogs are stubs until then.
+
+**Still refused:** BRS / eCitizen / iTax / ODPC / LinkedIn scrape; stealth crawlers; invented KES, cap tables, PEPs, or sanctions.
+
+---
+
 ## 1. Current status
 
 | Layer | Status |
@@ -20,6 +41,8 @@ Companion to [`VERIQ.md`](./VERIQ.md). That file is the product bible. This file
 The live MVP already answers:
 
 > Connect a company → scan website + public GitHub → produce evidence → score → recommend actions → rescan.
+
+2.0 adds: a provenance-aware evidence graph (people, documents, money facts, edges), authorised-document amount extraction, unified contradictions, financial health **only from extracted or attested facts** (else UNKNOWN), an SME pack, and graph-backed Ask VeriQ.
 
 Uncommitted local work extends that spine with the **Truth Layer**: five evidence states, a claim ledger, evidence score vs risk score, decision confidence, Challenge mode, and industry risk packs. VERIQ does not scrape government registries or compete as another KYB database.
 
@@ -94,9 +117,11 @@ Do not position or build VERIQ as:
 - A cybersecurity dashboard
 - A lawyer, auditor, regulator, accountant, or certifier (§40)
 
-The question VERIQ answers:
+VERIQ 2.0 still answers that, and also:
 
-> What could materially hurt this company, why, what evidence proves it, and what should we do next?
+> Given this organisation and the evidence we are allowed to hold, what can be proven, what contradicts, what is financially implied, and what remains UNKNOWN?
+
+It does **not** replace accounting systems, run AML case management, or scrape government registries.
 
 ---
 
@@ -201,6 +226,12 @@ Dimensions (weights in `scoreFromRisks`):
 | Reputation | 8% |
 | AI | 6% |
 
+2.0 **truth score** (stored on `scans.summary.truthScore`, not a second `scores` table) is explainable and evidence-linked:
+
+Financial Health · Governance · Compliance · Operational Health · Data Integrity · Counterparty · Cyber/Technology · Liquidity
+
+A dimension is UNKNOWN (omitted from the average) when its inputs were not extracted or attested. Never show 0 because data is missing.
+
 Priority ≈ impact × likelihood × exposure × confidence, later configurable by industry. MVP uses severity bands: CRITICAL / HIGH / MEDIUM / LOW / INFORMATIONAL.
 
 ---
@@ -266,6 +297,17 @@ Do not ship a public API product until 1–3 are done.
 ---
 
 ## 13. Next sprints
+
+### Sprint 0 — VERIQ 2.0 core (this pass)
+
+- Universal org schema: edges, money/period on facts, `sector_pack`, consent/retention on the org
+- Persist digger people/claims as unverified entities (never as CR12 directors)
+- Authorised vault amount extract + two-source contradiction UI
+- Financial health from extracted facts + SME pack missing-evidence list
+- Truth score + Ask VeriQ from graph/conflicts
+- API: relationships, conflicts; financial-health only when facts exist
+
+**Done when:** uploading a bank statement and management accounts that disagree on revenue produces an explainable contradiction (value, variance %, evidence), not a chatbot summary.
 
 ### Sprint 1 — Ship what is already built
 

@@ -1,0 +1,49 @@
+# Polite collector — identify yourself and stay on allowed public pages.
+# Do not use this to hide automation, rotate identities, or bypass access controls.
+
+user_agent: "VERIQ-Scan/1.0 (+https://veriq.ke/bot; contact@example.com)"
+timeout_seconds: 20
+max_retries: 3
+backoff_base_seconds: 1.0
+backoff_max_seconds: 30.0
+min_delay_seconds: 1.0
+max_delay_seconds: 3.0
+max_pages: 20
+same_origin_only: true
+headless: true
+locale: en-KE
+
+circuit_breaker:
+  failure_threshold: 5
+  cooldown_seconds: 60.0
+
+requests:
+  concurrency: 2
+  backoff_jitter: true
+  # Same-origin public cookies for this identified crawler. Not a login session.
+  session_state_path: null
+
+# Bind 127.0.0.1. port -1 disables the listener; 0 picks a free port.
+health:
+  host: 127.0.0.1
+  port: -1
+
+extract:
+  # load waits for JS; use domcontentloaded for a faster first paint.
+  wait_until: load
+  capture_screenshot: false
+  capture_pdf: false
+
+selectors:
+  title:
+    css: "title"
+  heading:
+    css: "h1"
+  description:
+    css: "meta[name='description']"
+  canonical:
+    xpath: "//link[@rel='canonical']/@href"
+
+# Optional HTTP(S) proxy for your own network egress (corporate proxy).
+# Prefer env: HTTP_PROXY / HTTPS_PROXY. Not for identity rotation.
+proxy: null

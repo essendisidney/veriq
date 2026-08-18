@@ -1,5 +1,8 @@
 import type { TrustStatus } from "@/lib/database.types";
 import type { VendorMap } from "@/lib/vendors/assess";
+import type { ExtractedAmount } from "@/lib/acquire/money";
+import { extractAmounts } from "@/lib/acquire/money";
+import { assessFinancialHealth, type FinancialHealth } from "@/lib/finance/health";
 
 export type ConcentrationBand = "unknown" | "low" | "moderate" | "high";
 export type LiquidityBand = "unknown" | "tight" | "adequate" | "strong";
@@ -43,6 +46,7 @@ export type FinanceAssessment = {
   unknowns: string[];
   posture: number;
   summary: string;
+  health?: FinancialHealth;
 };
 
 const BAND_LABEL: Record<ConcentrationBand, string> = {
@@ -90,6 +94,7 @@ export function assessFinance(input: {
   vendors: VendorMap | null;
   industry: string;
   attested?: AttestedFinance | null;
+  documents?: { kind: string; filename: string; extractedText: string | null }[];
 }): FinanceAssessment {
   const attested = input.attested ?? { ...DEFAULT_ATTESTED };
   const vendors = input.vendors?.vendors ?? [];
@@ -187,18 +192,30 @@ export function assessFinance(input: {
     },
   ];
 
+  const documents = input.documents ?? [];
+  const amounts: ExtractedAmount[] = documents.flatMap((doc) =>
+    extractAmounts(doc.extractedText, doc.kind, doc.filename),
+  );
+  const health = assessFinancialHealth({
+    industry: input.industry,
+    amounts,
+    documentKinds: documents.map((doc) => doc.kind),
+  });
+
   const unknowns: string[] = [];
   if (!paymentRails.length) unknowns.push("Payment processor / transaction rail");
   if (attested.customerConcentration === "unknown") unknowns.push("Customer concentration");
-  if (attested.liquidity === "unknown") unknowns.push("Liquidity / cash runway");
+  if (attested.liquidity === "unknown" && health.ratios.find((row) => row.id === "inflows")?.status !== "computed") {
+    unknowns.push("Liquidity / cash runway");
+  }
   if (attested.revenueMix === "unknown") unknowns.push("Revenue mix");
   if (attested.singleSite === "unknown") unknowns.push("Single-site operations");
   if (attested.keyPerson === "unknown") unknowns.push("Key-person dependency");
   if (attested.secondaryPaymentRail === "unknown") {
     unknowns.push("Secondary payment rail");
   }
-  unknowns.push("Revenue amount");
-  unknowns.push("Transaction volume");
+  if (!amounts.some((row) => row.metric === "revenue")) unknowns.push("Revenue amount");
+  if (!amounts.some((row) => row.metric === "inflows")) unknowns.push("Transaction volume");
 
   let posture = 70;
   if (paymentConcentration === "high") posture -= 12;
@@ -244,6 +261,7 @@ export function assessFinance(input: {
     technologyConcentration,
     unknowns,
     posture,
-    summary: summaryParts.join(" "),
+    summary: `${summaryParts.join(" ")} ${health.summary}`,
+    health,
   };
 }

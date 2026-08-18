@@ -31,6 +31,9 @@ export function MissingEvidencePanel({
       <Link href={href} className="mt-5 inline-block text-sm text-[var(--accent)] hover:underline">
         Open the claim ledger
       </Link>
+      <Link href="/coverage" className="mt-2 ml-4 inline-block text-sm text-[var(--accent)] hover:underline">
+        See coverage
+      </Link>
     </section>
   );
 }

@@ -50,6 +50,9 @@ export type Organization = {
   website: string | null;
   country: string;
   industry: string;
+  sector_pack: string;
+  consent_scopes: string[];
+  retention_class: string;
   github_login: string | null;
   created_by: string | null;
   created_at: string;
@@ -152,8 +155,96 @@ export type EvidenceDocument = {
   byte_size: number;
   sha256: string;
   storage_path: string;
+  extracted_text: string | null;
+  extraction_status: string;
   uploaded_by: string | null;
   created_at: string;
+};
+
+export type VeriqEntity = {
+  id: string;
+  organization_id: string;
+  entity_key: string;
+  kind: string;
+  label: string;
+  keys: string[];
+  related_keys: string[];
+  created_at: string;
+  updated_at: string;
+};
+
+export type VeriqFact = {
+  id: string;
+  organization_id: string;
+  entity_id: string;
+  claim: string;
+  value: string;
+  connector_id: string;
+  source_type: string;
+  source_ref: string | null;
+  confidence: number;
+  access_method: string;
+  excerpt: string | null;
+  content_hash: string;
+  document_id: string | null;
+  amount_minor: number | null;
+  currency: string | null;
+  period_start: string | null;
+  period_end: string | null;
+  unit: string | null;
+  validation_status: string;
+  observed_at: string;
+};
+
+export type VeriqFactConflict = {
+  id: string;
+  organization_id: string;
+  left_fact_id: string;
+  right_fact_id: string;
+  claim: string;
+  why: string;
+  variance_pct: number | null;
+  left_value: string | null;
+  right_value: string | null;
+  validation_status: string;
+  created_at: string;
+};
+
+export type VeriqEdge = {
+  id: string;
+  organization_id: string;
+  from_key: string;
+  to_key: string;
+  kind: string;
+  confidence: number;
+  validation_status: string;
+  why: string;
+  source_fact_hashes: string[];
+  created_at: string;
+};
+
+export type VeriqSourceRun = {
+  id: string;
+  organization_id: string;
+  source_id: string;
+  registry_status: string;
+  observed: boolean;
+  note: string;
+  evidence_count: number;
+  ran_at: string;
+};
+
+export type VeriqCrawlPage = {
+  id: string;
+  organization_id: string;
+  url: string;
+  status: string;
+  content_type: string;
+  content_hash: string;
+  excerpt: string;
+  source_class: string;
+  reason: string;
+  observed_at: string;
 };
 
 export type ValidationEvent = {
@@ -319,6 +410,75 @@ export type Database = {
           storage_path: string;
         };
         Update: Partial<EvidenceDocument>;
+        Relationships: [];
+      };
+      veriq_entities: {
+        Row: VeriqEntity;
+        Insert: Partial<VeriqEntity> & {
+          organization_id: string;
+          entity_key: string;
+          kind: string;
+          label: string;
+        };
+        Update: Partial<VeriqEntity>;
+        Relationships: [];
+      };
+      veriq_facts: {
+        Row: VeriqFact;
+        Insert: Partial<VeriqFact> & {
+          organization_id: string;
+          entity_id: string;
+          claim: string;
+          value: string;
+          connector_id: string;
+          source_type: string;
+          access_method: string;
+          content_hash: string;
+        };
+        Update: Partial<VeriqFact>;
+        Relationships: [];
+      };
+      veriq_fact_conflicts: {
+        Row: VeriqFactConflict;
+        Insert: Partial<VeriqFactConflict> & {
+          organization_id: string;
+          left_fact_id: string;
+          right_fact_id: string;
+          claim: string;
+          why: string;
+        };
+        Update: Partial<VeriqFactConflict>;
+        Relationships: [];
+      };
+      veriq_edges: {
+        Row: VeriqEdge;
+        Insert: Partial<VeriqEdge> & {
+          organization_id: string;
+          from_key: string;
+          to_key: string;
+          kind: string;
+        };
+        Update: Partial<VeriqEdge>;
+        Relationships: [];
+      };
+      veriq_source_runs: {
+        Row: VeriqSourceRun;
+        Insert: Partial<VeriqSourceRun> & {
+          organization_id: string;
+          source_id: string;
+          registry_status: string;
+        };
+        Update: Partial<VeriqSourceRun>;
+        Relationships: [];
+      };
+      veriq_crawl_pages: {
+        Row: VeriqCrawlPage;
+        Insert: Partial<VeriqCrawlPage> & {
+          organization_id: string;
+          url: string;
+          status: string;
+        };
+        Update: Partial<VeriqCrawlPage>;
         Relationships: [];
       };
       validation_events: {

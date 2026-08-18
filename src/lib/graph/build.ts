@@ -6,6 +6,7 @@ import type { AiAssessment } from "@/lib/ai/assess";
 import type { WorldAssessment } from "@/lib/world/assess";
 import type { ClaimsAssessment } from "@/lib/claims/assess";
 import { isContradicted } from "@/lib/claims/catalog";
+import type { AcquisitionAssessment } from "@/lib/acquire/types";
 
 export type GraphNodeType =
   | "company"
@@ -16,7 +17,9 @@ export type GraphNodeType =
   | "external"
   | "regulation"
   | "risk"
-  | "claim";
+  | "claim"
+  | "person"
+  | "document";
 
 export type GraphEdgeKind =
   | "owns"
@@ -29,7 +32,9 @@ export type GraphEdgeKind =
   | "affects"
   | "exposes"
   | "asserts"
-  | "conflicts_with";
+  | "conflicts_with"
+  | "mentioned_in"
+  | "related_party";
 
 export type GraphImportance = "critical" | "high" | "medium" | "low";
 
@@ -84,6 +89,8 @@ const EDGE_KIND_LABELS: Record<GraphEdgeKind, string> = {
   exposes: "exposes",
   asserts: "asserts",
   conflicts_with: "conflicts with",
+  mentioned_in: "mentioned in",
+  related_party: "possible related party",
 };
 
 export function edgeKindLabel(kind: GraphEdgeKind) {
@@ -100,6 +107,8 @@ export const NODE_TYPE_LABELS: Record<GraphNodeType, string> = {
   regulation: "Regulation",
   risk: "Risk",
   claim: "Claim",
+  person: "Person (unverified)",
+  document: "Document",
 };
 
 function addNode(nodes: Map<string, GraphNode>, node: GraphNode) {
@@ -134,6 +143,7 @@ export function buildRiskGraph(input: {
     category: string;
     owner_role: string;
   }[];
+  acquisition?: AcquisitionAssessment | null;
 }): RiskGraph {
   const nodes = new Map<string, GraphNode>();
   const edges: GraphEdge[] = [];
@@ -357,6 +367,46 @@ export function buildRiskGraph(input: {
     } else {
       addEdge(edges, "company", id, "exposes");
     }
+  }
+
+  for (const entity of input.acquisition?.entities ?? []) {
+    if (entity.kind === "person") {
+      addNode(nodes, {
+        id: entity.id,
+        type: "person",
+        label: entity.label,
+        importance: "medium",
+        evidence: "Named on the company site. Not a CR12 director.",
+      });
+      addEdge(edges, entity.id, "company", "mentioned_in");
+    }
+    if (entity.kind === "document") {
+      addNode(nodes, {
+        id: entity.id,
+        type: "document",
+        label: entity.label,
+        importance: "high",
+        evidence: "Customer-authorised vault artefact.",
+      });
+      addEdge(edges, "company", entity.id, "owns");
+    }
+  }
+  for (const edge of input.acquisition?.edges ?? []) {
+    if (edge.kind === "related_party") {
+      addEdge(edges, edge.fromKey, "company", "related_party");
+    }
+  }
+  for (const conflict of input.acquisition?.conflicts ?? []) {
+    if (!conflict.variancePct) continue;
+    const id = `conflict:${conflict.claim}`;
+    addNode(nodes, {
+      id,
+      type: "claim",
+      label: conflict.claim.replace("money:", ""),
+      importance: "critical",
+      evidence: conflict.why,
+    });
+    addEdge(edges, "company", id, "conflicts_with");
   }
 
   const paths = correlate({

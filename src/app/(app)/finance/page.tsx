@@ -147,6 +147,30 @@ export default function FinancePage() {
 
           <p className="text-sm leading-6 text-[var(--muted)]">{finance.summary}</p>
 
+          {finance.health && (
+            <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
+              <h2 className="font-display text-2xl italic">{finance.health.packTitle}</h2>
+              <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{finance.health.summary}</p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                {finance.health.ratios.map((row) => (
+                  <div key={row.id} className="flex justify-between gap-3 text-sm">
+                    <span className="text-[var(--muted)]">{row.label}</span>
+                    <span className="font-medium text-[var(--ink)]">{row.display}</span>
+                  </div>
+                ))}
+              </div>
+              {finance.health.anomalies.length > 0 && (
+                <ul className="mt-4 space-y-2">
+                  {finance.health.anomalies.map((row) => (
+                    <li key={row.id} className="text-sm leading-6 text-[var(--muted)]">
+                      {row.title}. {row.why}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
+
           <div className="grid gap-4">
             {finance.signals.map((signal) => (
               <div

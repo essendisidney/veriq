@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { COUNTRIES, INDUSTRIES, slugify } from "@/lib/utils";
+import { packForIndustry } from "@/lib/packs/sector";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,6 +26,7 @@ export default function OnboardingPage() {
   const [githubLogin, setGithubLogin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<"idle" | "find" | "scan">("idle");
+  const pack = packForIndustry(industry);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -149,6 +151,12 @@ export default function OnboardingPage() {
                   </option>
                 ))}
               </select>
+              <p className="mt-1 text-xs text-[var(--muted)]">
+                Audit pack: {pack.title}
+                {pack.implemented
+                  ? " — SME rules run on authorised documents."
+                  : " — catalog only until a design partner fills the rules."}
+              </p>
             </div>
           </div>
           <div>

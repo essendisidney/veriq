@@ -4,6 +4,9 @@ import type { ChangeSet } from "@/lib/changes/diff";
 import type { TrustProfile } from "@/lib/truth/profile";
 import { TRUST_CALL_LABELS, callFromPosture, type TrustCall } from "@/lib/truth/call";
 import { challengeCompany } from "@/lib/truth/challenge";
+import type { AcquisitionAssessment } from "@/lib/acquire/types";
+import type { FinancialHealth } from "@/lib/finance/health";
+import type { TruthScore } from "@/lib/truth/score";
 
 export type AskIntent =
   | "lend"
@@ -13,7 +16,12 @@ export type AskIntent =
   | "partner"
   | "challenge"
   | "delta"
-  | "trust";
+  | "trust"
+  | "contradict"
+  | "leakage"
+  | "suppliers"
+  | "missing"
+  | "score";
 
 export type AskAnswer = {
   intent: AskIntent;
@@ -30,6 +38,11 @@ export type AskAnswer = {
 
 export function detectIntent(question: string): AskIntent {
   const q = question.toLowerCase();
+  if (/contradict|does a agree|inconsist/.test(q)) return "contradict";
+  if (/leakage|biggest financial|where is (the )?money/.test(q)) return "leakage";
+  if (/supplier|related.party|conflict of interest|directors have/.test(q)) return "suppliers";
+  if (/missing|what information|what (are we|do we) miss/.test(q)) return "missing";
+  if (/why.*(score|68|give us)|what would (an investor|a lender)/.test(q)) return "score";
   if (/chang|delta|since last|monitor|what.?s new/.test(q)) return "delta";
   if (/challeng|what should i (ask|challenge)|management/.test(q)) return "challenge";
   if (/lend|loan|facilit|ksh|credit|underwrite/.test(q)) return "lend";
@@ -47,6 +60,9 @@ export function answerAsk(input: {
   claims?: ClaimsAssessment | null;
   changes?: ChangeSet | null;
   critical?: number;
+  acquisition?: AcquisitionAssessment | null;
+  health?: FinancialHealth | null;
+  truthScore?: TruthScore | null;
 }): AskAnswer {
   const intent = detectIntent(input.question);
   const call = callFromPosture(input.trust?.posture ?? "insufficient_evidence", {
@@ -112,6 +128,105 @@ export function answerAsk(input: {
   }
   if (intent === "challenge") {
     headline = `Challenge ${input.company} on the story, not the registration.`;
+  }
+  if (intent === "contradict") {
+    const rows = input.acquisition?.conflicts ?? [];
+    headline = rows.length
+      ? `${rows.length} contradiction${rows.length === 1 ? "" : "s"} on the evidence graph. Each requires validation.`
+      : "No two-source amount or claim contradiction is on file yet. Upload searchable accounts and a bank statement, or wait for a scan.";
+    return {
+      intent,
+      question: input.question,
+      call,
+      headline,
+      supporting: rows.slice(0, 4).map((row) => row.why),
+      risks: rows.map((row) => row.claim),
+      unresolved: [],
+      documents: ["Management/audited accounts", "Bank statement"],
+      questions: [],
+      disclaimer:
+        "Contradictions are evidence conflicts, not fraud findings. VERIQ does not scrape BRS or invent KES.",
+    };
+  }
+  if (intent === "leakage") {
+    const anomalies = input.health?.anomalies ?? [];
+    headline = anomalies.length
+      ? anomalies[0].why
+      : "No authorised ledger amounts were extracted, so financial leakage is UNKNOWN.";
+    return {
+      intent,
+      question: input.question,
+      call,
+      headline,
+      supporting: (input.health?.ratios ?? [])
+        .filter((row) => row.status === "computed")
+        .map((row) => `${row.label}: ${row.display}`),
+      risks: anomalies.map((row) => row.title),
+      unresolved: input.health?.missing.slice(0, 4) ?? [],
+      documents: ["Bank statement", "Accounts"],
+      questions: [],
+      disclaimer:
+        "Patterns require investigation. They are not accusations. Missing inputs stay UNKNOWN.",
+    };
+  }
+  if (intent === "suppliers") {
+    const related = (input.acquisition?.edges ?? []).filter((edge) => edge.kind === "related_party");
+    headline = related.length
+      ? `${related.length} possible related-party edge${related.length === 1 ? "" : "s"} require human validation.`
+      : "No related-party edge is on the graph yet. People from the website are unverified, not CR12 directors.";
+    return {
+      intent,
+      question: input.question,
+      call,
+      headline,
+      supporting: related.map((edge) => edge.why),
+      risks: related.map((edge) => edge.why),
+      unresolved: ["CR12 / official extract for directors"],
+      documents: ["CR12 / company extract"],
+      questions: [],
+      disclaimer: "Website names are not directors. LinkedIn is not scraped.",
+    };
+  }
+  if (intent === "missing") {
+    const missing = [
+      ...(input.health?.missing ?? []),
+      ...(input.acquisition?.domains ?? [])
+        .filter((row) => row.status !== "connected")
+        .map((row) => row.need),
+    ].slice(0, 8);
+    headline = missing.length
+      ? `${missing.length} evidence gaps. No evidence = no conclusion.`
+      : "Connected sources cover the starter set. Ownership and ledgers may still be incomplete.";
+    return {
+      intent,
+      question: input.question,
+      call,
+      headline,
+      supporting: [],
+      risks: [],
+      unresolved: missing,
+      documents: missing,
+      questions: [],
+      disclaimer: "Ask VERIQ lists missing artefacts. It does not fill them in.",
+    };
+  }
+  if (intent === "score") {
+    headline = input.truthScore?.summary ?? `Public risk score ${input.trust?.risk ?? "—"}/100 is not a clearance.`;
+    return {
+      intent,
+      question: input.question,
+      call,
+      headline,
+      supporting: (input.truthScore?.dimensions ?? [])
+        .filter((row) => row.score != null)
+        .map((row) => `${row.label}: ${row.score}/100. ${row.why}`),
+      risks: [],
+      unresolved: input.truthScore?.unknown.map((row) => `${row} is UNKNOWN.`) ?? [],
+      documents: [],
+      questions: [],
+      disclaimer:
+        "The organizational truth score averages evidenced dimensions only. UNKNOWN is omitted, never scored as zero.",
+    };
   }
 
   return {

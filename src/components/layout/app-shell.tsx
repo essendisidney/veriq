@@ -57,6 +57,7 @@ const navGroups = [
       { label: "Truth", href: "/truth", icon: Fingerprint },
       { label: "Challenge", href: "/challenge", icon: Swords },
       { label: "Passport", href: "/passport", icon: BadgeCheck },
+      { label: "Coverage", href: "/coverage", icon: ScanSearch },
       { label: "Score", href: "/score", icon: Scale },
       { label: "Risk Graph", href: "/graph", icon: Share2 },
       { label: "Scenarios", href: "/scenarios", icon: FlaskConical },

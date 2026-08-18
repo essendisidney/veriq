@@ -16,12 +16,14 @@ import { MissingEvidencePanel } from "@/components/missing-evidence";
 import { buildTrustProfile, DECISION_POSTURE_LABELS, type TrustProfile } from "@/lib/truth/profile";
 import type { ClaimsAssessment } from "@/lib/claims/assess";
 import type { IntegrityAssessment } from "@/lib/integrity/assess";
+import type { TruthScore } from "@/lib/truth/score";
 
 export default function ScorePage() {
   const { currentOrg } = useWorkspace();
   const [score, setScore] = useState<Score | null>(null);
   const [risks, setRisks] = useState<Risk[]>([]);
   const [trust, setTrust] = useState<TrustProfile | null>(null);
+  const [truthScore, setTruthScore] = useState<TruthScore | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -51,10 +53,16 @@ export default function ScorePage() {
       const nextScore = (scores?.[0] as Score) ?? null;
       const nextRisks = (openRisks as Risk[]) ?? [];
       const summary = scans?.[0]?.summary as
-        | { claims?: ClaimsAssessment; integrity?: IntegrityAssessment; trust?: TrustProfile }
+        | {
+            claims?: ClaimsAssessment;
+            integrity?: IntegrityAssessment;
+            trust?: TrustProfile;
+            truthScore?: TruthScore;
+          }
         | undefined;
       setScore(nextScore);
       setRisks(nextRisks);
+      setTruthScore(summary?.truthScore ?? null);
       setTrust(
         nextScore
           ? buildTrustProfile({
@@ -132,6 +140,29 @@ export default function ScorePage() {
               <Stat label="Signals" value={String(explained.counts.signals)} />
             </div>
           </section>
+
+          {truthScore && (
+            <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-7">
+              <p className="eyebrow">Organizational truth</p>
+              <p className="mt-4 font-display text-7xl italic leading-none">
+                {truthScore.overall ?? "—"}
+              </p>
+              <p className="mt-3 text-sm leading-6 text-[var(--muted)]">{truthScore.summary}</p>
+              <div className="mt-6 space-y-3">
+                {truthScore.dimensions.map((dim) => (
+                  <div key={dim.id} className="flex items-start justify-between gap-4 text-sm">
+                    <div>
+                      <p className="font-medium text-[var(--ink)]">{dim.label}</p>
+                      <p className="mt-1 text-xs leading-5 text-[var(--muted)]">{dim.why}</p>
+                    </div>
+                    <span className="shrink-0 text-[var(--muted)]">
+                      {dim.score == null ? "UNKNOWN" : dim.score}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
             <h2 className="font-display text-2xl">Dimensions</h2>

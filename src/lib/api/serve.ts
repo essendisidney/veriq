@@ -64,7 +64,7 @@ export type ApiSnapshotPayload = ApiRiskPayload & {
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Authorization, Content-Type",
   "Access-Control-Max-Age": "86400",
 };
@@ -214,6 +214,164 @@ async function recordShareOpen(
   } catch {
     // Viewing the pack must not fail because the open log did not write.
   }
+}
+
+export async function loadCompanyAcquisition(
+  authorization: string | null,
+  company: string,
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  const { status, body } = await loadCompanyRisk(authorization, company);
+  if (status !== 200 || !body.company) {
+    return { status, body: { error: body.error ?? "lookup_failed" } };
+  }
+
+  const supabase = lookupClient();
+  if (!supabase) {
+    return { status: 503, body: { error: "misconfigured" } };
+  }
+
+  const orgId = body.company.id;
+  const [{ data: sources }, { data: entities }, { data: facts }, { data: conflicts }] =
+    await Promise.all([
+      supabase
+        .from("veriq_source_runs")
+        .select("source_id, registry_status, observed, note, evidence_count, ran_at")
+        .eq("organization_id", orgId)
+        .order("source_id"),
+      supabase
+        .from("veriq_entities")
+        .select("entity_key, kind, label, keys, related_keys")
+        .eq("organization_id", orgId)
+        .limit(80),
+      supabase
+        .from("veriq_facts")
+        .select("claim, value, connector_id, source_type, confidence, access_method, observed_at, amount_minor, currency")
+        .eq("organization_id", orgId)
+        .order("observed_at", { ascending: false })
+        .limit(100),
+      supabase
+        .from("veriq_fact_conflicts")
+        .select("claim, why, variance_pct, left_value, right_value, validation_status")
+        .eq("organization_id", orgId)
+        .limit(40),
+    ]);
+
+  return {
+    status: 200,
+    body: {
+      company: body.company,
+      sources: sources ?? [],
+      entities: entities ?? [],
+      facts: facts ?? [],
+      conflicts: conflicts ?? [],
+      disclaimer: API_DISCLAIMER,
+      note: "This is authorised coverage, not a BRS scrape. Missing sources stay to_connect.",
+    },
+  };
+}
+
+export async function loadCompanyRelationships(
+  authorization: string | null,
+  company: string,
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  const { status, body } = await loadCompanyRisk(authorization, company);
+  if (status !== 200 || !body.company) {
+    return { status, body: { error: body.error ?? "lookup_failed" } };
+  }
+  const supabase = lookupClient();
+  if (!supabase) return { status: 503, body: { error: "misconfigured" } };
+  const orgId = body.company.id;
+  const [{ data: entities }, { data: edges }] = await Promise.all([
+    supabase
+      .from("veriq_entities")
+      .select("entity_key, kind, label, related_keys")
+      .eq("organization_id", orgId)
+      .limit(120),
+    supabase
+      .from("veriq_edges")
+      .select("from_key, to_key, kind, confidence, validation_status, why")
+      .eq("organization_id", orgId)
+      .limit(200),
+  ]);
+  return {
+    status: 200,
+    body: {
+      company: body.company,
+      entities: entities ?? [],
+      edges: edges ?? [],
+      disclaimer: API_DISCLAIMER,
+      note: "People from the website are unverified. Related-party edges require human validation.",
+    },
+  };
+}
+
+export async function loadCompanyConflicts(
+  authorization: string | null,
+  company: string,
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  const { status, body } = await loadCompanyRisk(authorization, company);
+  if (status !== 200 || !body.company) {
+    return { status, body: { error: body.error ?? "lookup_failed" } };
+  }
+  const supabase = lookupClient();
+  if (!supabase) return { status: 503, body: { error: "misconfigured" } };
+  const { data: conflicts } = await supabase
+    .from("veriq_fact_conflicts")
+    .select("claim, why, variance_pct, left_value, right_value, validation_status, created_at")
+    .eq("organization_id", body.company.id)
+    .limit(80);
+  return {
+    status: 200,
+    body: {
+      company: body.company,
+      conflicts: conflicts ?? [],
+      disclaimer: API_DISCLAIMER,
+      note: "A contradiction is two evidenced values that disagree. It is not a fraud finding.",
+    },
+  };
+}
+
+export async function loadCompanyFinancialHealth(
+  authorization: string | null,
+  company: string,
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  const token = bearerToken(authorization);
+  if (!token) {
+    return { status: 401, body: { error: "unauthorized" } };
+  }
+  const { status, body } = await loadCompanySnapshot(token, company);
+  if (status !== 200) {
+    return { status, body: { error: body.error ?? "lookup_failed" } };
+  }
+  const summary = (body.summary ?? {}) as {
+    finance?: { health?: unknown };
+    truthScore?: unknown;
+  };
+  const health = summary.finance && typeof summary.finance === "object"
+    ? (summary.finance as { health?: { ratios?: { status: string }[] } }).health
+    : null;
+  const computed = health?.ratios?.filter((row) => row.status === "computed").length ?? 0;
+  if (!computed) {
+    return {
+      status: 200,
+      body: {
+        company: body.company,
+        health: null,
+        error: "insufficient_facts",
+        note: "Financial health is published only when authorised documents yielded extractable amounts. UNKNOWN is not zero.",
+        disclaimer: API_DISCLAIMER,
+      },
+    };
+  }
+  return {
+    status: 200,
+    body: {
+      company: body.company,
+      health,
+      truthScore: summary.truthScore ?? null,
+      disclaimer: API_DISCLAIMER,
+    },
+  };
 }
 
 export async function loadInstitutionalPack(

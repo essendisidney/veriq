@@ -198,6 +198,65 @@ export default function DevelopersPage() {
                 </dt>
                 <dd className="mt-1 text-[var(--muted)]">Open findings only.</dd>
               </div>
+              <div>
+                <dt className="font-mono text-[var(--accent)]">
+                  GET /api/v1/company/{"{id}"}/coverage
+                </dt>
+                <dd className="mt-1 text-[var(--muted)]">
+                  Kenya source registry, entities, facts and conflicts. Not a BRS dump.
+                </dd>
+              </div>
+              <div>
+                <dt className="font-mono text-[var(--accent)]">
+                  GET /api/v1/company/{"{id}"}/sources
+                </dt>
+                <dd className="mt-1 text-[var(--muted)]">
+                  Connector status only: to_connect, starter, or connected.
+                </dd>
+              </div>
+              <div>
+                <dt className="font-mono text-[var(--accent)]">
+                  GET /api/v1/company/{"{id}"}/evidence
+                </dt>
+                <dd className="mt-1 text-[var(--muted)]">
+                  Entity IDs and fact observations. Document bytes are not returned.
+                </dd>
+              </div>
+              <div>
+                <dt className="font-mono text-[var(--accent)]">
+                  GET /api/v1/company/{"{id}"}/digger
+                </dt>
+                <dd className="mt-1 text-[var(--muted)]">
+                  Permitted crawl: claims (not facts), robots refusals, and page hashes. Not a
+                  registry scrape.
+                </dd>
+              </div>
+              <div>
+                <dt className="font-mono text-[var(--accent)]">
+                  GET /api/v1/company/{"{id}"}/relationships
+                </dt>
+                <dd className="mt-1 text-[var(--muted)]">
+                  Evidence-graph entities and edges. Website people are unverified. Related-party
+                  edges require human validation.
+                </dd>
+              </div>
+              <div>
+                <dt className="font-mono text-[var(--accent)]">
+                  GET /api/v1/company/{"{id}"}/conflicts
+                </dt>
+                <dd className="mt-1 text-[var(--muted)]">
+                  Two-source contradictions with variance. Not a fraud finding.
+                </dd>
+              </div>
+              <div>
+                <dt className="font-mono text-[var(--accent)]">
+                  GET or POST /api/v1/company/{"{id}"}/financial-health
+                </dt>
+                <dd className="mt-1 text-[var(--muted)]">
+                  Ratios only when authorised documents yielded amounts. Otherwise insufficient_facts.
+                  POST is the same read — VERIQ does not invent a ledger.
+                </dd>
+              </div>
             </dl>
             <pre className="mt-4 overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--elevated)] p-4 text-xs text-[var(--ink)]">
 {`curl -H "Authorization: Bearer vq_live_…" \\
@@ -210,7 +269,10 @@ curl -H "Authorization: Bearer vq_live_…" \\
   ${origin}/api/v1/company/${companyRef}/credit
 
 curl -H "Authorization: Bearer vq_live_…" \\
-  ${origin}/api/v1/company/${companyRef}/restructuring`}
+  ${origin}/api/v1/company/${companyRef}/coverage
+
+curl -H "Authorization: Bearer vq_live_…" \\
+  ${origin}/api/v1/company/${companyRef}/sources`}
             </pre>
             <p className="mt-3 text-xs text-[var(--muted)]">
               Authorization: Bearer. Call this host, not the database. Keys and share tokens are

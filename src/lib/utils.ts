@@ -56,6 +56,11 @@ export const PRIORITY_LABELS: Record<ActionPriority, string> = {
 
 export const INDUSTRIES = [
   { value: "fintech", label: "Fintech" },
+  { value: "sacco", label: "SACCO" },
+  { value: "mfi", label: "Microfinance" },
+  { value: "ngo", label: "NGO / nonprofit" },
+  { value: "education", label: "School / education" },
+  { value: "church", label: "Church / faith" },
   { value: "financial_services", label: "Financial services" },
   { value: "insurance", label: "Insurance" },
   { value: "saas", label: "SaaS" },

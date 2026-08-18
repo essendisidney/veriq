@@ -1,10 +1,10 @@
 # VERIQ
 
-**Before you trust a company, VERIQ it.**
+**VERIQ — The Organizational Truth & Intelligence Engine.**
 
-Don't just verify the company. Verify the story.
+Know the company. Understand the money. Detect the risk. Find what others miss.
 
-Evidence is the product. AI is the engine.
+Evidence is the product. AI is the explanation layer, not the source of facts.
 
 ## VERIQ principle
 

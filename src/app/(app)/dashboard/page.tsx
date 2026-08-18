@@ -32,6 +32,7 @@ import { buildTrustProfile, DECISION_POSTURE_LABELS, type TrustProfile } from "@
 import { isScanDue, parseCadence, type ScanCadence } from "@/lib/webhooks/cadence";
 import { isOverdue } from "@/lib/risk/certainty";
 import { MissingEvidencePanel } from "@/components/missing-evidence";
+import type { AcquisitionAssessment } from "@/lib/acquire/types";
 
 export default function DashboardPage() {
   const { currentOrg } = useWorkspace();
@@ -50,6 +51,7 @@ export default function DashboardPage() {
   const [integrity, setIntegrity] = useState<IntegrityAssessment | null>(null);
   const [claims, setClaims] = useState<ClaimsAssessment | null>(null);
   const [trust, setTrust] = useState<TrustProfile | null>(null);
+  const [acquisition, setAcquisition] = useState<AcquisitionAssessment | null>(null);
   const [scanDue, setScanDue] = useState(false);
   const [cadence, setCadence] = useState<ScanCadence>("off");
   const [loading, setLoading] = useState(true);
@@ -114,6 +116,7 @@ export default function DashboardPage() {
             integrity?: IntegrityAssessment;
             claims?: ClaimsAssessment;
             trust?: TrustProfile;
+            acquisition?: AcquisitionAssessment;
           }
         | undefined;
       setExposure(summary?.exposure ?? null);
@@ -133,6 +136,7 @@ export default function DashboardPage() {
       setWorld(summary?.world ?? null);
       setIntegrity(summary?.integrity ?? null);
       setClaims(summary?.claims ?? null);
+      setAcquisition(summary?.acquisition ?? null);
       setTrust(
         buildTrustProfile({
           risk: (scores?.[0] as Score)?.overall ?? 0,
@@ -260,6 +264,20 @@ export default function DashboardPage() {
                   </p>
                   <p className="font-display text-3xl italic">{trust.confidence}%</p>
                 </div>
+              </div>
+            )}
+            {acquisition && (
+              <div className="mt-4">
+                <p className="text-[11px] uppercase tracking-[0.16em] text-[var(--muted)]">
+                  Coverage
+                </p>
+                <p className="font-display text-3xl italic">{acquisition.coverage}%</p>
+                <Link
+                  href="/coverage"
+                  className="mt-1 inline-block text-xs text-[var(--accent)] hover:underline"
+                >
+                  What VERIQ can see
+                </Link>
               </div>
             )}
             {trust && (

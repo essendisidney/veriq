@@ -27,6 +27,8 @@ import {
   CLAIMS_ASSET,
 } from "@/lib/claims/assess";
 import { buildTrustProfile } from "@/lib/truth/profile";
+import { buildTruthScore } from "@/lib/truth/score";
+import { packForIndustry } from "@/lib/packs/sector";
 import {
   buildSnapshot,
   criticalityFor,
@@ -44,6 +46,12 @@ import {
 } from "@/lib/webhooks/deliver";
 import { computeNextDue, parseCadence } from "@/lib/webhooks/cadence";
 import { resolveCompanyIdentity } from "@/lib/truth/identity";
+import { assessAcquisition } from "@/lib/acquire/assess";
+import { persistAcquisition } from "@/lib/acquire/persist";
+import { runKenyaConnectors } from "@/lib/acquire/kenya";
+import { EMPTY_DIGGER } from "@/lib/digger/types";
+import { runDigger } from "@/lib/digger/run";
+import { persistDigger } from "@/lib/digger/persist";
 
 const SCAN_COOLDOWN_MS = 90_000;
 const SCAN_STALE_MS = 10 * 60_000;
@@ -309,6 +317,17 @@ export async function runOrganizationScan(
       declared: declaredAi,
       attested: parseAttestedAi(aiGovernance?.metadata),
     });
+    const { data: vaultDocs } = await supabase
+      .from("evidence_documents")
+      .select("kind, filename, sha256, created_at, extracted_text")
+      .eq("organization_id", organizationId)
+      .limit(80);
+    const { data: priorPages } = await supabase
+      .from("veriq_crawl_pages")
+      .select("url, content_hash")
+      .eq("organization_id", organizationId)
+      .limit(80);
+
     const observedClaims = extractObservedClaims({
       html: website?.storyText || website?.html,
       teamFootprint: website?.teamFootprint,
@@ -316,6 +335,39 @@ export async function runOrganizationScan(
       githubPublicRepos: github?.publicRepos ?? github?.repos.length ?? 0,
       vendors: vendorMap,
     });
+    let origin: string | null = null;
+    if (website?.url) {
+      try {
+        origin = new URL(website.url).origin;
+      } catch {
+        origin = null;
+      }
+    }
+    const scanned = website;
+    const digger = scanned?.reachable
+      ? await isolate(
+          () =>
+            runDigger({
+              origin,
+              homepageUrl: scanned.url,
+              homepageHtml: scanned.html,
+              storyHtml: scanned.storyHtml,
+              storyText: scanned.storyText,
+              storyPages: scanned.storyPages,
+              companyName: org.name,
+              vault: (vaultDocs ?? []).map((row) => ({
+                filename: row.filename,
+                kind: row.kind,
+                text: row.extracted_text ?? null,
+              })),
+              previousHashes: (priorPages ?? []).map((row) => ({
+                url: row.url,
+                content_hash: row.content_hash,
+              })),
+            }),
+          EMPTY_DIGGER,
+        )
+      : EMPTY_DIGGER;
     if (website) {
       website.html = "";
       website.storyHtml = "";
@@ -340,6 +392,11 @@ export async function runOrganizationScan(
       vendors: vendorMap,
       industry: org.industry,
       attested: parseAttested(financeAsset?.metadata),
+      documents: (vaultDocs ?? []).map((row) => ({
+        kind: row.kind,
+        filename: row.filename,
+        extractedText: row.extracted_text ?? null,
+      })),
     });
     const world = assessWorld({
       country: org.country,
@@ -373,6 +430,46 @@ export async function runOrganizationScan(
       observed: observedClaims,
       industry: org.industry,
     });
+    const acquisition = assessAcquisition({
+      organizationId,
+      name: org.name,
+      country: org.country,
+      website,
+      github,
+      exposure,
+      claims,
+      documents: (vaultDocs ?? []).map((row) => ({
+        kind: row.kind,
+        filename: row.filename,
+        sha256: row.sha256,
+        created_at: row.created_at,
+        extractedText: row.extracted_text ?? null,
+      })),
+      githubToken: Boolean(options?.githubToken),
+      digger,
+      integrity,
+    });
+    const kenyaRuns = runKenyaConnectors({
+      organizationId,
+      name: org.name,
+      country: org.country,
+      websiteHostname: website?.hostname ?? null,
+      websiteHttps: website?.https ?? null,
+      websiteReachable: Boolean(website?.reachable),
+      storyPageCount: website?.storyPages.length ?? 0,
+      githubLogin: github && !github.error ? github.login : null,
+      documents: (vaultDocs ?? []).map((row) => ({
+        kind: row.kind,
+        filename: row.filename,
+        sha256: row.sha256,
+        extractedText: row.extracted_text ?? null,
+      })),
+    });
+    await isolate(async () => {
+      await persistAcquisition(supabase, organizationId, acquisition, kenyaRuns);
+      await persistDigger(supabase, organizationId, digger);
+      return true;
+    }, false);
 
     for (const vendor of vendorMap.vendors) {
       const existing = (vendorAssets ?? []).find((row) => {
@@ -483,6 +580,7 @@ export async function runOrganizationScan(
       world,
       claims,
       risks: drafts,
+      acquisition,
     });
 
     for (const draft of drafts) {
@@ -613,6 +711,23 @@ export async function runOrganizationScan(
     }
 
     const score = scoreFromRisks(drafts);
+    const truthScore = buildTruthScore({
+      riskOverall: score.overall,
+      cyber: score.cybersecurity,
+      regulatory: score.regulatory,
+      operational: score.operational,
+      vendor: score.vendor,
+      financial: score.financial,
+      data: score.data,
+      acquisition,
+      health: finance.health,
+      conflictCount: acquisition.conflicts.length,
+    });
+    const sectorPack = packForIndustry(org.industry);
+    await supabase
+      .from("organizations")
+      .update({ sector_pack: sectorPack.id, updated_at: new Date().toISOString() })
+      .eq("id", organizationId);
     const trust = buildTrustProfile({
       risk: score.overall,
       claims,
@@ -752,6 +867,10 @@ export async function runOrganizationScan(
           integrity,
           claims,
           trust,
+          acquisition,
+          digger,
+          truthScore,
+          sectorPack: sectorPack.id,
           overall: score.overall,
           exposure: exposureJoined,
           snapshot,

@@ -16,13 +16,17 @@ import type { ClaimsAssessment } from "@/lib/claims/assess";
 import type { TrustProfile } from "@/lib/truth/profile";
 import type { ChangeSet } from "@/lib/changes/diff";
 import type { Risk } from "@/lib/database.types";
+import type { AcquisitionAssessment } from "@/lib/acquire/types";
+import type { FinancialHealth } from "@/lib/finance/health";
+import type { TruthScore } from "@/lib/truth/score";
 
 const PROMPTS = [
+  "Why did you give us this score?",
+  "Show me every contradiction.",
+  "Where is our biggest financial leakage?",
+  "Which suppliers should we investigate?",
+  "What information are we missing?",
   "Can I lend this company money?",
-  "Is this supplier safe for a large contract?",
-  "What should I challenge management on?",
-  "What's changed since our last review?",
-  "Should I invest?",
 ];
 
 export default function AskPage() {
@@ -33,6 +37,9 @@ export default function AskPage() {
   const [trust, setTrust] = useState<TrustProfile | null>(null);
   const [changes, setChanges] = useState<ChangeSet | null>(null);
   const [critical, setCritical] = useState(0);
+  const [acquisition, setAcquisition] = useState<AcquisitionAssessment | null>(null);
+  const [health, setHealth] = useState<FinancialHealth | null>(null);
+  const [truthScore, setTruthScore] = useState<TruthScore | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -55,11 +62,21 @@ export default function AskPage() {
           .eq("severity", "critical"),
       ]);
       const summary = scans?.[0]?.summary as
-        | { claims?: ClaimsAssessment; trust?: TrustProfile; changes?: ChangeSet }
+        | {
+            claims?: ClaimsAssessment;
+            trust?: TrustProfile;
+            changes?: ChangeSet;
+            acquisition?: AcquisitionAssessment;
+            finance?: { health?: FinancialHealth };
+            truthScore?: TruthScore;
+          }
         | undefined;
       setClaims(summary?.claims ?? null);
       setTrust(summary?.trust ?? null);
       setChanges(summary?.changes ?? null);
+      setAcquisition(summary?.acquisition ?? null);
+      setHealth(summary?.finance?.health ?? null);
+      setTruthScore(summary?.truthScore ?? null);
       setCritical((risks as Risk[] | null)?.length ?? 0);
       setLoaded(true);
     }
@@ -80,6 +97,9 @@ export default function AskPage() {
         claims,
         changes,
         critical,
+        acquisition,
+        health,
+        truthScore,
       }),
     );
   }

@@ -31,6 +31,7 @@ import {
   type ClaimsAssessment,
 } from "@/lib/claims/assess";
 import { buildTrustProfile, type TrustProfile } from "@/lib/truth/profile";
+import type { AcquisitionAssessment } from "@/lib/acquire/types";
 import { formatDate } from "@/lib/utils";
 import { MissingEvidencePanel } from "@/components/missing-evidence";
 
@@ -57,6 +58,7 @@ export default function TruthPage() {
   const [assessedAt, setAssessedAt] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [acquisition, setAcquisition] = useState<AcquisitionAssessment | null>(null);
 
   async function load() {
     if (!currentOrg) return;
@@ -90,11 +92,12 @@ export default function TruthPage() {
           .in("status", ["open", "in_progress", "acknowledged"]),
       ]);
     const summary = scans?.[0]?.summary as
-      | { claims?: ClaimsAssessment; trust?: TrustProfile }
+      | { claims?: ClaimsAssessment; trust?: TrustProfile; acquisition?: AcquisitionAssessment }
       | undefined;
     const nextClaims = summary?.claims ?? null;
     const overall = scores?.[0]?.overall ?? 0;
     setClaims(nextClaims);
+    setAcquisition(summary?.acquisition ?? null);
     setRisk(overall);
     setAssessedAt(scans?.[0]?.completed_at ?? null);
     setAttested(parseAttestedClaims(asset?.metadata));
@@ -161,6 +164,31 @@ export default function TruthPage() {
         <div className="mb-6">
           <MissingEvidencePanel items={trust.missing} href="/truth" />
         </div>
+      )}
+
+      {acquisition && (acquisition.conflicts?.length ?? 0) > 0 && (
+        <section className="mb-6 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
+          <h2 className="font-display text-2xl italic">Contradictions</h2>
+          <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+            Same claim, two sources. Requires validation. Not a fraud finding.
+          </p>
+          <ul className="mt-4 space-y-3">
+            {acquisition.conflicts.map((row, index) => (
+              <li
+                key={`${row.claim}-${index}`}
+                className="rounded-xl border border-[var(--border)] bg-[var(--elevated)] px-4 py-3"
+              >
+                <p className="font-medium text-[var(--ink)]">{row.claim.replace("money:", "")}</p>
+                <p className="mt-1 text-sm leading-6 text-[var(--muted)]">{row.why}</p>
+                {row.variancePct != null && (
+                  <p className="mt-2 text-xs uppercase tracking-[0.14em] text-[var(--muted)]">
+                    {row.variancePct}% variance
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {trust && (

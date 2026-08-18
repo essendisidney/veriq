@@ -1,12 +1,26 @@
 # VERIQ
 
-## Continuous Corporate Risk Intelligence
+## Organizational Truth & Intelligence Engine
 
-> See the risk before it becomes reality.
+> Know the company. Understand the money. Detect the risk. Find what others miss.
 
 **Verify. Understand. Predict.**
 
-VERIQ is the intelligence layer that continuously understands a company and identifies what could threaten its future.
+VERIQ 2.0 is an evidence-first organisational intelligence platform. Give it any organisation, connect authorised data, interrogate identity, documents, money and relationships, surface inconsistencies, quantify financial condition **only from evidence**, and monitor what changes.
+
+It is one core engine plus sector audit packs (SME first; SACCO, MFI, NGO, school, hospital, church, professional, logistics, fintech as catalogs). It is not KYB, not GRC, not an auditor, and not a credit bureau.
+
+AI explains. Deterministic engines write facts. Unverified inference never becomes a fact.
+
+The original corporate-risk spine (scan, radar, graph, score) remains the product path. 2.0 extends it with an evidence graph, authorised document intelligence, and contradiction/financial engines. See [`BUILD.md`](./BUILD.md) §0 for build order.
+
+---
+
+## Continuous Corporate Risk Intelligence (heritage)
+
+> See the risk before it becomes reality.
+
+VERIQ is also the intelligence layer that continuously understands a company and identifies what could threaten its future.
 
 ---
 
