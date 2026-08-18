@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
-import { Instrument_Sans, Newsreader } from "next/font/google";
+import { Source_Sans_3, Source_Serif_4 } from "next/font/google";
 import "./globals.css";
 
-const sans = Instrument_Sans({
-  variable: "--font-instrument",
+const sans = Source_Sans_3({
+  variable: "--font-ui",
   subsets: ["latin"],
   display: "swap",
 });
 
-const newsreader = Newsreader({
-  variable: "--font-newsreader",
+const serif = Source_Serif_4({
+  variable: "--font-serif",
   subsets: ["latin"],
   style: ["normal", "italic"],
   axes: ["opsz"],
@@ -30,7 +30,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${sans.variable} ${newsreader.variable} h-full antialiased`}
+      className={`${sans.variable} ${serif.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">{children}</body>
     </html>

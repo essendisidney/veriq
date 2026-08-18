@@ -30,8 +30,8 @@
   --color-medium: var(--medium);
   --color-low: var(--low);
   --color-good: var(--good);
-  --font-sans: var(--font-instrument);
-  --font-display: var(--font-newsreader);
+  --font-sans: var(--font-ui);
+  --font-display: var(--font-serif);
 }
 
 * {
@@ -48,11 +48,11 @@ body {
     radial-gradient(1200px 520px at 88% -8%, rgba(110, 231, 208, 0.08), transparent 52%),
     var(--bg);
   color: var(--ink);
-  font-family: var(--font-instrument), ui-sans-serif, system-ui, sans-serif;
-  font-size: 15px;
+  font-family: var(--font-ui), ui-sans-serif, system-ui, sans-serif;
+  font-size: 15.5px;
   line-height: 1.6;
-  font-feature-settings: "ss01", "cv11", "kern";
-  letter-spacing: -0.012em;
+  font-feature-settings: "kern", "liga";
+  letter-spacing: -0.006em;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -61,11 +61,11 @@ h1,
 h2,
 h3,
 .font-display {
-  font-family: var(--font-newsreader), "Iowan Old Style", "Palatino Linotype", serif;
+  font-family: var(--font-serif), "Iowan Old Style", "Palatino Linotype", Georgia, serif;
   font-optical-sizing: auto;
   font-feature-settings: "kern", "liga", "onum";
-  letter-spacing: -0.03em;
-  line-height: 1.12;
+  letter-spacing: -0.018em;
+  line-height: 1.15;
 }
 
 h1,
@@ -81,7 +81,7 @@ h3 {
 }
 
 .eyebrow {
-  font-family: var(--font-instrument), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-ui), ui-sans-serif, system-ui, sans-serif;
   font-size: 0.6875rem;
   font-weight: 500;
   letter-spacing: 0.28em;

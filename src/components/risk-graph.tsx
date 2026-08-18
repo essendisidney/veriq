@@ -185,7 +185,7 @@ export function RiskGraphView({
                   y={22}
                   fill="var(--ink)"
                   fontSize={12}
-                  fontFamily="var(--font-instrument), ui-sans-serif, sans-serif"
+                  fontFamily="var(--font-ui), ui-sans-serif, sans-serif"
                 >
                   {truncate(node.label, 24)}
                 </text>
@@ -194,7 +194,7 @@ export function RiskGraphView({
                   y={40}
                   fill="var(--muted)"
                   fontSize={10}
-                  fontFamily="var(--font-instrument), ui-sans-serif, sans-serif"
+                  fontFamily="var(--font-ui), ui-sans-serif, sans-serif"
                 >
                   {NODE_TYPE_LABELS[node.type]}
                   {node.risk ? ` · ${node.risk}` : ""}
