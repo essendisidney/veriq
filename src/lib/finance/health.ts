@@ -1,5 +1,6 @@
 import { formatKes, variancePct, type ExtractedAmount, type MoneyMetric } from "@/lib/acquire/money";
 import { missingForPack, packForIndustry, type SectorPackId } from "@/lib/packs/sector";
+import { assessTransactions, type TxnPattern } from "@/lib/finance/transactions";
 
 export type HealthRatio = {
   id: string;
@@ -22,6 +23,7 @@ export type FinancialHealth = {
   packTitle: string;
   ratios: HealthRatio[];
   anomalies: HealthAnomaly[];
+  transactions?: { lines: number; patterns: TxnPattern[]; summary: string };
   missing: string[];
   summary: string;
 };
@@ -51,6 +53,7 @@ export function assessFinancialHealth(input: {
   industry: string;
   amounts: ExtractedAmount[];
   documentKinds: string[];
+  documents?: { kind: string; filename: string; extractedText: string | null }[];
 }): FinancialHealth {
   const pack = packForIndustry(input.industry);
   const revenue = amount(input.amounts, "revenue");
@@ -58,6 +61,12 @@ export function assessFinancialHealth(input: {
   const payroll = amount(input.amounts, "payroll");
   const profit = amount(input.amounts, "profit");
   const expenses = amount(input.amounts, "expenses");
+  const debt = amount(input.amounts, "debt");
+  const equity = amount(input.amounts, "equity");
+  const interest = amount(input.amounts, "interest");
+  const receivables = amount(input.amounts, "receivables");
+  const payables = amount(input.amounts, "payables");
+  const cash = amount(input.amounts, "cash");
 
   const coverage =
     revenue && inflows && revenue.amountMinor > 0
@@ -71,6 +80,21 @@ export function assessFinancialHealth(input: {
     profit && revenue && revenue.amountMinor > 0
       ? profit.amountMinor / revenue.amountMinor
       : null;
+  const debtToEquity =
+    debt && equity && equity.amountMinor > 0 ? debt.amountMinor / equity.amountMinor : null;
+  const debtToRevenue =
+    debt && revenue && revenue.amountMinor > 0 ? debt.amountMinor / revenue.amountMinor : null;
+  /** Rough DSCR proxy: operating profit or inflows / interest — only when both exist. */
+  const dscrNumerator = profit?.amountMinor ?? inflows?.amountMinor ?? null;
+  const dscr =
+    dscrNumerator != null && interest && interest.amountMinor > 0
+      ? dscrNumerator / interest.amountMinor
+      : null;
+  const workingCapital =
+    receivables || payables || cash
+      ? (cash?.amountMinor ?? 0) + (receivables?.amountMinor ?? 0) - (payables?.amountMinor ?? 0)
+      : null;
+  const wcKnown = Boolean(cash || receivables || payables);
 
   const revenues = input.amounts
     .filter((row) => row.metric === "revenue")
@@ -97,6 +121,13 @@ export function assessFinancialHealth(input: {
       inflows ? inflows.amountMinor / 100 : null,
       inflows ? formatKes(inflows.amountMinor) : "UNKNOWN",
       inflows ? [inflows.filename] : [],
+    ),
+    ratio(
+      "cash",
+      "Cash / bank",
+      cash ? cash.amountMinor / 100 : null,
+      cash ? formatKes(cash.amountMinor) : "UNKNOWN",
+      cash ? [cash.filename] : [],
     ),
     ratio(
       "inflow_coverage",
@@ -126,8 +157,34 @@ export function assessFinancialHealth(input: {
       growth == null ? "UNKNOWN" : `${Math.round(growth * 100)}%`,
       revenues.slice(0, 2).map((row) => row.filename),
     ),
-    ratio("dscr", "DSCR", null, "UNKNOWN", []),
-    ratio("debt_to_equity", "Debt / equity", null, "UNKNOWN", []),
+    ratio(
+      "working_capital",
+      "Working capital (cash + receivables − payables)",
+      wcKnown && workingCapital != null ? workingCapital / 100 : null,
+      wcKnown && workingCapital != null ? formatKes(workingCapital) : "UNKNOWN",
+      [cash?.filename, receivables?.filename, payables?.filename].filter(Boolean) as string[],
+    ),
+    ratio(
+      "dscr",
+      "DSCR proxy (profit or inflows / interest)",
+      dscr,
+      dscr == null ? "UNKNOWN" : dscr.toFixed(2),
+      [profit?.filename, inflows?.filename, interest?.filename].filter(Boolean) as string[],
+    ),
+    ratio(
+      "debt_to_equity",
+      "Debt / equity",
+      debtToEquity,
+      debtToEquity == null ? "UNKNOWN" : debtToEquity.toFixed(2),
+      [debt?.filename, equity?.filename].filter(Boolean) as string[],
+    ),
+    ratio(
+      "debt_to_revenue",
+      "Debt / revenue",
+      debtToRevenue,
+      debtToRevenue == null ? "UNKNOWN" : debtToRevenue.toFixed(2),
+      [debt?.filename, revenue?.filename].filter(Boolean) as string[],
+    ),
   ];
 
   const anomalies: HealthAnomaly[] = [];
@@ -158,6 +215,14 @@ export function assessFinancialHealth(input: {
       status: "requires_investigation",
     });
   }
+  if (dscr != null && dscr < 1.2) {
+    anomalies.push({
+      id: "thin-dscr",
+      title: "Thin debt-service coverage",
+      why: `DSCR proxy ${dscr.toFixed(2)} is below 1.2 from extracted interest and profit/inflows. Pattern requires investigation — not a credit decision.`,
+      status: "requires_investigation",
+    });
+  }
   for (const row of input.amounts) {
     const kes = row.amountMinor / 100;
     if (kes >= 1_000_000 && kes % 1_000_000 === 0) {
@@ -178,7 +243,27 @@ export function assessFinancialHealth(input: {
       status: "requires_investigation",
     });
   }
-  if (input.documentKinds.includes("bank_statement") && inflowFacts.length <= 1) {
+
+  const transactions = assessTransactions({
+    texts: (input.documents ?? []).map((doc) => ({
+      filename: doc.filename,
+      kind: doc.kind,
+      text: doc.extractedText,
+    })),
+  });
+  for (const row of transactions.patterns) {
+    anomalies.push({
+      id: row.id,
+      title: row.title,
+      why: row.why,
+      status: "requires_investigation",
+    });
+  }
+  if (
+    input.documentKinds.includes("bank_statement") &&
+    inflowFacts.length <= 1 &&
+    transactions.lines === 0
+  ) {
     anomalies.push({
       id: "below-threshold-untested",
       title: "Repeat below-threshold credits untested",
@@ -192,13 +277,14 @@ export function assessFinancialHealth(input: {
   const summary =
     computed === 0
       ? `${pack.title}: no ledger amounts were extracted. Ratios stay UNKNOWN. Upload searchable (not scanned-only) accounts or bank statements.`
-      : `${pack.title}: ${computed} ratio${computed === 1 ? "" : "s"} computed from authorised documents. ${anomalies.length} pattern${anomalies.length === 1 ? "" : "s"} flagged for investigation. Missing inputs stay UNKNOWN — VERIQ does not invent KES.`;
+      : `${pack.title}: ${computed} ratio${computed === 1 ? "" : "s"} computed from authorised documents. ${anomalies.length} pattern${anomalies.length === 1 ? "" : "s"} flagged for investigation. ${transactions.summary} Missing inputs stay UNKNOWN — VERIQ does not invent KES.`;
 
   return {
     packId: pack.id,
     packTitle: pack.title,
     ratios,
     anomalies,
+    transactions,
     missing,
     summary,
   };

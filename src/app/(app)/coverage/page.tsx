@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { ScanButton } from "@/components/scan-button";
+import { ConflictValidationList } from "@/components/conflict-validation";
 import { ingestVaultDocument } from "@/lib/actions/acquire";
 import {
   KENYA_SOURCE_REGISTRY,
@@ -142,11 +143,13 @@ export default function CoveragePage() {
             </section>
           )}
 
+          {currentOrg && <ConflictValidationList organizationId={currentOrg.id} />}
+
           {acquisition && acquisition.conflicts.length > 0 && (
             <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
-              <h2 className="font-display text-2xl italic">Contradictions</h2>
+              <h2 className="font-display text-2xl italic">Latest scan contradictions</h2>
               <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-                Same claim, two sources, different values. Requires validation. Not a fraud finding.
+                Snapshot from the last scan. Use the validation list above to mark status.
               </p>
               <ul className="mt-5 space-y-3">
                 {acquisition.conflicts.map((row, index) => (
@@ -250,7 +253,30 @@ export default function CoveragePage() {
                 {uploading ? "Storing…" : "Ingest"}
               </Button>
             </form>
-            {message && <p className="mt-3 text-sm text-[var(--muted)]">{message}</p>}
+            {message && (
+              <div className="mt-3 space-y-2 text-sm text-[var(--muted)]">
+                <p>{message}</p>
+                {!message.toLowerCase().includes("could not") &&
+                  !message.toLowerCase().startsWith("choose") &&
+                  !message.toLowerCase().startsWith("upload") &&
+                  !message.toLowerCase().startsWith("file") &&
+                  !message.toLowerCase().startsWith("not ") && (
+                    <p>
+                      Next:{" "}
+                      <span className="text-[var(--ink)]">Rescan</span> to graph directors and
+                      amounts, then open{" "}
+                      <Link href="/finance" className="text-[var(--accent)] hover:underline">
+                        Finance
+                      </Link>{" "}
+                      or{" "}
+                      <Link href="/ask" className="text-[var(--accent)] hover:underline">
+                        Ask
+                      </Link>
+                      .
+                    </p>
+                  )}
+              </div>
+            )}
             {vault.length > 0 && (
               <ul className="mt-5 space-y-2">
                 {vault.map((row) => (
@@ -268,12 +294,22 @@ export default function CoveragePage() {
 
           {digger && (
             <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
-              <h2 className="font-display text-2xl italic">Authorised digger</h2>
+              <h2 className="font-display text-2xl italic">Identified crawler</h2>
               <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{digger.summary}</p>
               <p className="mt-2 text-xs text-[var(--muted)]">
-                Budget {digger.budgetUsed}/{digger.budgetMax}. robots.txt honoured. Login, CAPTCHA,
-                paywall and government portals are refused.
+                Budget {digger.budgetUsed}/{digger.budgetMax}. Identified as VERIQ/2.0. robots.txt and
+                crawl-delay honoured. Login, CAPTCHA, paywall and government portals are refused.
               </p>
+              {digger.pages.length > 0 && (
+                <ul className="mt-5 space-y-2">
+                  {digger.pages.slice(0, 16).map((row) => (
+                    <li key={row.url} className="text-sm leading-6">
+                      <span className="text-[var(--ink)]">{row.status}</span>
+                      <span className="text-[var(--muted)]"> · {row.url}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
               {digger.claims.length > 0 && (
                 <ul className="mt-5 space-y-3">
                   {digger.claims.map((row) => (

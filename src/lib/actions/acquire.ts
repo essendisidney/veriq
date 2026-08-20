@@ -76,7 +76,7 @@ export async function ingestVaultDocument(formData: FormData) {
     extraction: extracted.status,
     note:
       extracted.status === "extracted"
-        ? "Text layer stored as evidence. Rescan to graph it. VERIQ did not invent directors from the file."
+        ? "Text layer stored. Rescan to parse directors/amounts into the graph. VERIQ did not invent officers from the filename."
         : extracted.status === "no_text_layer"
           ? "No searchable text layer. A scanned CR12 stays an artefact until OCR is connected or you attest the facts."
           : "Image stored. Optical character recognition is not connected yet.",

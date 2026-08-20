@@ -37,6 +37,8 @@ export const DOCUMENT_KINDS = [
   "licence",
   "contract",
   "policy",
+  "board_minutes",
+  "loan_schedule",
   "other",
 ] as const;
 export type DocumentKind = (typeof DOCUMENT_KINDS)[number];
@@ -69,6 +71,8 @@ export const DOCUMENT_KIND_LABELS: Record<DocumentKind, string> = {
   licence: "Licence or permit",
   contract: "Contract",
   policy: "Policy or board paper",
+  board_minutes: "Board minutes",
+  loan_schedule: "Loan schedule / debt service",
   other: "Other supporting artefact",
 };
 

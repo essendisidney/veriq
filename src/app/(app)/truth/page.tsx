@@ -34,6 +34,7 @@ import { buildTrustProfile, type TrustProfile } from "@/lib/truth/profile";
 import type { AcquisitionAssessment } from "@/lib/acquire/types";
 import { formatDate } from "@/lib/utils";
 import { MissingEvidencePanel } from "@/components/missing-evidence";
+import { ConflictValidationList } from "@/components/conflict-validation";
 
 const TRI: { value: TriState; label: string }[] = [
   { value: "unknown", label: "Unknown" },
@@ -166,11 +167,17 @@ export default function TruthPage() {
         </div>
       )}
 
+      {currentOrg && (
+        <div className="mb-6">
+          <ConflictValidationList organizationId={currentOrg.id} />
+        </div>
+      )}
+
       {acquisition && (acquisition.conflicts?.length ?? 0) > 0 && (
         <section className="mb-6 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
-          <h2 className="font-display text-2xl italic">Contradictions</h2>
+          <h2 className="font-display text-2xl italic">Latest scan contradictions</h2>
           <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-            Same claim, two sources. Requires validation. Not a fraud finding.
+            Snapshot from the last scan. Validate status in the list above.
           </p>
           <ul className="mt-4 space-y-3">
             {acquisition.conflicts.map((row, index) => (

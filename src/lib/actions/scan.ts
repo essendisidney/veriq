@@ -28,6 +28,7 @@ import {
 } from "@/lib/claims/assess";
 import { buildTrustProfile } from "@/lib/truth/profile";
 import { buildTruthScore } from "@/lib/truth/score";
+import { assessGovernance } from "@/lib/truth/governance";
 import { packForIndustry } from "@/lib/packs/sector";
 import {
   buildSnapshot,
@@ -354,6 +355,8 @@ export async function runOrganizationScan(
               storyHtml: scanned.storyHtml,
               storyText: scanned.storyText,
               storyPages: scanned.storyPages,
+              crawled: scanned.crawled,
+              crawlMeta: scanned.crawlMeta,
               companyName: org.name,
               vault: (vaultDocs ?? []).map((row) => ({
                 filename: row.filename,
@@ -372,6 +375,7 @@ export async function runOrganizationScan(
       website.html = "";
       website.storyHtml = "";
       website.storyText = "";
+      website.crawled = [];
     }
 
     const { data: financeAsset } = await supabase
@@ -711,6 +715,14 @@ export async function runOrganizationScan(
     }
 
     const score = scoreFromRisks(drafts);
+    const relatedPartyCount = (acquisition.edges ?? []).filter((e) => e.kind === "related_party").length;
+    const governance = assessGovernance({
+      documentKinds: (vaultDocs ?? []).map((row) => row.kind),
+      relatedPartyEdges: relatedPartyCount,
+      peopleNamed: digger.people.length,
+      ownershipConfidence: acquisition.confidence.ownership,
+      directorsParsed: acquisition.entities.filter((row) => row.kind === "director").length,
+    });
     const truthScore = buildTruthScore({
       riskOverall: score.overall,
       cyber: score.cybersecurity,
@@ -722,6 +734,7 @@ export async function runOrganizationScan(
       acquisition,
       health: finance.health,
       conflictCount: acquisition.conflicts.length,
+      governance,
     });
     const sectorPack = packForIndustry(org.industry);
     await supabase
@@ -754,6 +767,10 @@ export async function runOrganizationScan(
         title: draft.title,
         severity: draft.severity,
       })),
+      conflictClaims: acquisition.conflicts.map((row) => row.claim),
+      people: digger.people.map((row) => row.name),
+      ownershipPresent: (vaultDocs ?? []).some((row) => row.kind === "cr12" || row.kind === "company_extract"),
+      relatedPartyCount,
     });
     const previousSummary = previousScan.data?.summary as ScanSummarySlice | null | undefined;
     const changes = diffSnapshots({
@@ -870,6 +887,7 @@ export async function runOrganizationScan(
           acquisition,
           digger,
           truthScore,
+          governance,
           sectorPack: sectorPack.id,
           overall: score.overall,
           exposure: exposureJoined,

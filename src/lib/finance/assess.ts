@@ -200,6 +200,11 @@ export function assessFinance(input: {
     industry: input.industry,
     amounts,
     documentKinds: documents.map((doc) => doc.kind),
+    documents: documents.map((doc) => ({
+      kind: doc.kind,
+      filename: doc.filename,
+      extractedText: doc.extractedText,
+    })),
   });
 
   const unknowns: string[] = [];

@@ -168,6 +168,11 @@ export default function FinancePage() {
                   ))}
                 </ul>
               )}
+              {finance.health.transactions && (
+                <p className="mt-4 text-sm leading-6 text-[var(--muted)]">
+                  {finance.health.transactions.summary}
+                </p>
+              )}
             </section>
           )}
 

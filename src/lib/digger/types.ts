@@ -26,6 +26,7 @@ export const CRAWL_STATUSES = [
   "captcha",
   "oversize",
   "error",
+  "circuit_open",
 ] as const;
 export type CrawlStatus = (typeof CRAWL_STATUSES)[number];
 

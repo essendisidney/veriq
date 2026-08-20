@@ -250,6 +250,15 @@ export default function DevelopersPage() {
               </div>
               <div>
                 <dt className="font-mono text-[var(--accent)]">
+                  GET or POST /api/v1/company/{"{id}"}/verify
+                </dt>
+                <dd className="mt-1 text-[var(--muted)]">
+                  Composite pack: risk, relationships, conflicts, financial-health, truth score,
+                  governance. Evidence only — not a KYB clearance.
+                </dd>
+              </div>
+              <div>
+                <dt className="font-mono text-[var(--accent)]">
                   GET or POST /api/v1/company/{"{id}"}/financial-health
                 </dt>
                 <dd className="mt-1 text-[var(--muted)]">

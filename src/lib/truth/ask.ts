@@ -7,6 +7,8 @@ import { challengeCompany } from "@/lib/truth/challenge";
 import type { AcquisitionAssessment } from "@/lib/acquire/types";
 import type { FinancialHealth } from "@/lib/finance/health";
 import type { TruthScore } from "@/lib/truth/score";
+import type { GovernanceAssessment } from "@/lib/truth/governance";
+import type { DiggerReport } from "@/lib/digger/types";
 
 export type AskIntent =
   | "lend"
@@ -21,7 +23,10 @@ export type AskIntent =
   | "leakage"
   | "suppliers"
   | "missing"
-  | "score";
+  | "score"
+  | "governance"
+  | "directors"
+  | "fix";
 
 export type AskAnswer = {
   intent: AskIntent;
@@ -40,7 +45,12 @@ export function detectIntent(question: string): AskIntent {
   const q = question.toLowerCase();
   if (/contradict|does a agree|inconsist/.test(q)) return "contradict";
   if (/leakage|biggest financial|where is (the )?money/.test(q)) return "leakage";
-  if (/supplier|related.party|conflict of interest|directors have/.test(q)) return "suppliers";
+  if (/supplier|related.party|conflict of interest/.test(q)) return "suppliers";
+  if (/who (runs|owns|controls)|named (people|persons)|which directors|who (are|is) the directors|list (of )?directors/.test(q))
+    return "directors";
+  if (/board|governance|segregation|controls/.test(q)) return "governance";
+  if (/director/.test(q) && !/related/.test(q)) return "directors";
+  if (/fix first|what should management|remediat|priority/.test(q)) return "fix";
   if (/missing|what information|what (are we|do we) miss/.test(q)) return "missing";
   if (/why.*(score|68|give us)|what would (an investor|a lender)/.test(q)) return "score";
   if (/chang|delta|since last|monitor|what.?s new/.test(q)) return "delta";
@@ -63,6 +73,8 @@ export function answerAsk(input: {
   acquisition?: AcquisitionAssessment | null;
   health?: FinancialHealth | null;
   truthScore?: TruthScore | null;
+  governance?: GovernanceAssessment | null;
+  digger?: DiggerReport | null;
 }): AskAnswer {
   const intent = detectIntent(input.question);
   const call = callFromPosture(input.trust?.posture ?? "insufficient_evidence", {
@@ -212,20 +224,110 @@ export function answerAsk(input: {
   }
   if (intent === "score") {
     headline = input.truthScore?.summary ?? `Public risk score ${input.trust?.risk ?? "—"}/100 is not a clearance.`;
+    const lender =
+      /lender|lend|credit/.test(input.question.toLowerCase())
+        ? [
+            "Lender worry: cash vs revenue contradiction, ownership extract, licence standing.",
+            ...(input.health?.missing.slice(0, 3) ?? []),
+          ]
+        : /investor/.test(input.question.toLowerCase())
+          ? [
+              "Investor worry: growth without inflows, related-party edges, unverified headcount.",
+              ...(input.acquisition?.conflicts.slice(0, 2).map((row) => row.why) ?? []),
+            ]
+          : [];
     return {
       intent,
       question: input.question,
       call,
       headline,
-      supporting: (input.truthScore?.dimensions ?? [])
-        .filter((row) => row.score != null)
-        .map((row) => `${row.label}: ${row.score}/100. ${row.why}`),
+      supporting: [
+        ...(input.truthScore?.dimensions ?? [])
+          .filter((row) => row.score != null)
+          .map((row) => `${row.label}: ${row.score}/100. ${row.why}`),
+        ...lender,
+      ].slice(0, 8),
       risks: [],
       unresolved: input.truthScore?.unknown.map((row) => `${row} is UNKNOWN.`) ?? [],
       documents: [],
       questions: [],
       disclaimer:
         "The organizational truth score averages evidenced dimensions only. UNKNOWN is omitted, never scored as zero.",
+    };
+  }
+  if (intent === "governance") {
+    const gov = input.governance;
+    headline = gov?.summary ?? "Governance stays UNKNOWN until ownership or board artefacts are uploaded.";
+    return {
+      intent,
+      question: input.question,
+      call,
+      headline,
+      supporting: (gov?.findings ?? []).map((row) => `${row.title}: ${row.why}`),
+      risks: (gov?.findings ?? [])
+        .filter((row) => row.status === "requires_validation")
+        .map((row) => row.title),
+      unresolved: gov?.missing ?? [],
+      documents: ["CR12 / company extract", "Board minutes", "Policy"],
+      questions: [],
+      disclaimer: "Governance findings require human validation. Not a legal opinion.",
+    };
+  }
+  if (intent === "directors") {
+    const officers =
+      input.acquisition?.entities.filter(
+        (row) => row.kind === "director" || row.kind === "shareholder",
+      ) ?? [];
+    const directors = officers.filter((row) => row.kind === "director");
+    const people = input.digger?.people ?? [];
+    headline = directors.length
+      ? `${directors.length} director name(s) parsed from an authorised ownership extract text layer.`
+      : people.length
+        ? `${people.length} people named on the public site — unverified, not CR12 directors.`
+        : "No people were extracted. Ownership stays UNKNOWN without a searchable CR12.";
+    return {
+      intent,
+      question: input.question,
+      call,
+      headline,
+      supporting: [
+        ...directors.map((row) => `${row.label} · director (from extract)`),
+        ...officers
+          .filter((row) => row.kind === "shareholder")
+          .map((row) => `${row.label} · shareholder (from extract)`),
+        ...people.map((row) => `${row.name} · ${row.role} (website, unverified)`),
+      ],
+      risks: (input.acquisition?.edges ?? [])
+        .filter((edge) => edge.kind === "related_party")
+        .map((edge) => edge.why),
+      unresolved: directors.length
+        ? ["Confirm parsed names against the original CR12 PDF"]
+        : ["Upload a searchable CR12 before treating anyone as a director"],
+      documents: ["CR12 / company extract"],
+      questions: [],
+      disclaimer:
+        "Parsed extract names require human confirmation. Website names are not directors. LinkedIn and BRS are not scraped.",
+    };
+  }
+  if (intent === "fix") {
+    const anomalies = input.health?.anomalies ?? [];
+    const conflicts = input.acquisition?.conflicts ?? [];
+    headline = "Fix evidence gaps and contradictions first. VERIQ does not invent a remediation plan.";
+    return {
+      intent,
+      question: input.question,
+      call,
+      headline,
+      supporting: [
+        ...conflicts.slice(0, 2).map((row) => `Reconcile: ${row.claim}`),
+        ...anomalies.slice(0, 2).map((row) => `Investigate: ${row.title}`),
+        ...(input.governance?.missing.slice(0, 2).map((row) => `Upload: ${row}`) ?? []),
+      ],
+      risks: anomalies.map((row) => row.title),
+      unresolved: input.health?.missing.slice(0, 4) ?? [],
+      documents: ["Accounts", "Bank statement", "CR12"],
+      questions: challengeQs.slice(0, 4),
+      disclaimer: "Priority is evidence completeness, not a project plan.",
     };
   }
 

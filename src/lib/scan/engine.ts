@@ -18,6 +18,7 @@ import { safeFetch } from "@/lib/scan/safe-fetch";
 import { githubIdentity } from "@/lib/github/oauth";
 import { listContradictions } from "@/lib/integrity/contradictions";
 import { crawlStory, stripToText, type StoryPage } from "@/lib/scan/story";
+import type { CrawledPage } from "@/lib/crawler";
 
 export type DraftRisk = {
   fingerprint: string;
@@ -67,6 +68,13 @@ export type WebsiteScan = {
   privacyPolicyExcerpt: string | null;
   teamPageUrl: string | null;
   teamFootprint: number;
+  crawled: CrawledPage[];
+  crawlMeta: {
+    budgetUsed: number;
+    budgetMax: number;
+    summary: string;
+    refused: { url: string; reason: string }[];
+  };
   error?: string;
 };
 
@@ -196,6 +204,13 @@ function unreachableWebsite(
     privacyPolicyExcerpt: null,
     teamPageUrl: null,
     teamFootprint: 0,
+    crawled: [],
+    crawlMeta: {
+      budgetUsed: 0,
+      budgetMax: 0,
+      summary: "No public origin to crawl.",
+      refused: [],
+    },
     error,
   };
 }
@@ -239,7 +254,7 @@ export async function scanWebsite(website: string): Promise<WebsiteScan | null> 
     } catch {
       // Keep hostname origin.
     }
-    const story = await crawlStory(origin.endsWith("/") ? origin : `${origin}/`, html);
+    const story = await crawlStory(origin, html, finalUrl);
     const homeText = stripToText(html).slice(0, 12_000);
 
     return {
@@ -259,6 +274,13 @@ export async function scanWebsite(website: string): Promise<WebsiteScan | null> 
       privacyPolicyExcerpt: story.privacyExcerpt,
       teamPageUrl: story.teamPageUrl,
       teamFootprint: Math.max(story.teamFootprint, countTeamFootprint(html)),
+      crawled: story.crawled,
+      crawlMeta: {
+        budgetUsed: story.budgetUsed,
+        budgetMax: story.budgetMax,
+        summary: story.crawlSummary,
+        refused: story.refused,
+      },
     };
   } catch (error) {
     return unreachableWebsite(

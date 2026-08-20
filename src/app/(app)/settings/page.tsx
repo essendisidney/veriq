@@ -29,6 +29,15 @@ export default function SettingsPage() {
   const [githubLogin, setGithubLogin] = useState(currentOrg?.github_login ?? "");
   const [country, setCountry] = useState(currentOrg?.country ?? "KE");
   const [industry, setIndustry] = useState(currentOrg?.industry ?? "technology");
+  const [retentionClass, setRetentionClass] = useState(
+    currentOrg?.retention_class ?? "standard",
+  );
+  const [consentVault, setConsentVault] = useState(
+    (currentOrg?.consent_scopes ?? []).includes("vault"),
+  );
+  const [consentScan, setConsentScan] = useState(
+    (currentOrg?.consent_scopes ?? []).includes("website_scan"),
+  );
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [confirmName, setConfirmName] = useState("");
@@ -47,6 +56,10 @@ export default function SettingsPage() {
     setSaving(true);
     setMessage(null);
     const supabase = createClient();
+    const scopes = [
+      ...(consentVault ? ["vault"] : []),
+      ...(consentScan ? ["website_scan"] : []),
+    ];
     const { error } = await supabase
       .from("organizations")
       .update({
@@ -54,6 +67,8 @@ export default function SettingsPage() {
         github_login: githubLogin.replace(/^@/, "") || null,
         country,
         industry,
+        retention_class: retentionClass,
+        consent_scopes: scopes,
       })
       .eq("id", currentOrg.id);
     setSaving(false);
@@ -159,6 +174,41 @@ export default function SettingsPage() {
               ))}
             </select>
           </div>
+        </div>
+        <div>
+          <Label htmlFor="retention">Retention class</Label>
+          <select
+            id="retention"
+            value={retentionClass}
+            onChange={(e) => setRetentionClass(e.target.value)}
+            className="flex h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--elevated)] px-3 text-sm"
+          >
+            <option value="standard">Standard</option>
+            <option value="elevated">Elevated (shorter by policy)</option>
+            <option value="ephemeral">Ephemeral (session artefacts)</option>
+          </select>
+          <p className="mt-1 text-xs text-[var(--muted)]">
+            Labels consent posture for this workspace. Automated purge jobs are not running yet.
+          </p>
+        </div>
+        <div className="space-y-2 rounded-xl border border-[var(--border)] bg-[var(--elevated)] p-4">
+          <p className="text-sm font-medium text-[var(--ink)]">Consent scopes</p>
+          <label className="flex items-center gap-2 text-sm text-[var(--muted)]">
+            <input
+              type="checkbox"
+              checked={consentVault}
+              onChange={(e) => setConsentVault(e.target.checked)}
+            />
+            Authorised vault uploads
+          </label>
+          <label className="flex items-center gap-2 text-sm text-[var(--muted)]">
+            <input
+              type="checkbox"
+              checked={consentScan}
+              onChange={(e) => setConsentScan(e.target.checked)}
+            />
+            Identified website crawl
+          </label>
         </div>
         {message && (
           <p className="text-sm text-[var(--muted)]">{message}</p>

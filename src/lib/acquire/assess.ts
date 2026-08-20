@@ -11,6 +11,7 @@ import {
 } from "./catalog";
 import { entityId, linkIfShared, mergeEntities } from "./entity";
 import { moneyConflicts } from "./conflicts";
+import { extractOfficersFromText } from "./directors";
 import { extractAmounts, formatKes } from "./money";
 import type {
   AcquisitionAssessment,
@@ -294,6 +295,7 @@ function confidence(input: AcquireInput): DataConfidence {
 }
 
 function factsFromScan(input: AcquireInput, companyId: string): FactObservation[] {
+  const country = (input.country || "KE").toUpperCase();
   const rows: FactObservation[] = [];
   if (input.website?.reachable) {
     rows.push(
@@ -365,6 +367,28 @@ function factsFromScan(input: AcquireInput, companyId: string): FactObservation[
           unit: "KES",
           periodStart: amount.periodStart,
           periodEnd: amount.periodEnd,
+          stable: true,
+        }),
+      );
+    }
+    if (doc.kind !== "cr12" && doc.kind !== "company_extract") continue;
+    for (const officer of extractOfficersFromText(doc.extractedText)) {
+      const personKey = entityId(
+        officer.role === "director" ? "director" : "shareholder",
+        country,
+        officer.name,
+      );
+      rows.push(
+        observe({
+          entityId: personKey,
+          claim: officer.role === "director" ? "director_name" : "shareholder_name",
+          value: officer.name,
+          connectorId: "ke-brs",
+          sourceType: doc.kind,
+          access: "customer_authorised",
+          confidence: 84,
+          sourceRef: doc.sha256,
+          excerpt: officer.excerpt,
           stable: true,
         }),
       );
@@ -557,6 +581,15 @@ export function assessAcquisition(input: AcquireInput): AcquisitionAssessment {
     };
   });
 
+  const vaultOfficers = input.documents.flatMap((doc) =>
+    doc.kind === "cr12" || doc.kind === "company_extract"
+      ? extractOfficersFromText(doc.extractedText).map((officer) => ({
+          ...officer,
+          sha256: doc.sha256,
+        }))
+      : [],
+  );
+
   const entities: ResolvedEntity[] = mergeEntities([
     {
       id: companyId,
@@ -595,6 +628,16 @@ export function assessAcquisition(input: AcquireInput): AcquisitionAssessment {
       keys: [person.name.toLowerCase(), person.role.toLowerCase()],
       related: [companyId],
     })),
+    ...vaultOfficers.map((officer) => {
+      const kind = officer.role === "director" ? ("director" as const) : ("shareholder" as const);
+      return {
+        id: entityId(kind, country, officer.name),
+        kind,
+        label: officer.name,
+        keys: [officer.name.toLowerCase(), officer.role, officer.sha256],
+        related: [companyId],
+      };
+    }),
   ]);
   for (const a of entities) {
     for (const b of entities) linkIfShared(a, b);
@@ -620,12 +663,29 @@ export function assessAcquisition(input: AcquireInput): AcquisitionAssessment {
       sourceFactHashes: [],
     });
   }
+  for (const officer of vaultOfficers) {
+    const officerKey = entityId(
+      officer.role === "director" ? "director" : "shareholder",
+      country,
+      officer.name,
+    );
+    edges.push({
+      fromKey: officerKey,
+      toKey: companyId,
+      kind: officer.role === "director" ? "director_of" : "shareholder_of",
+      confidence: 84,
+      validationStatus: "pending",
+      why: `${officer.name} parsed as ${officer.role} from an authorised ownership extract text layer. Confirm against the original file.`,
+      sourceFactHashes: [],
+    });
+  }
   for (const entity of entities) {
-    if (entity.kind !== "person") continue;
+    if (entity.kind !== "person" && entity.kind !== "director") continue;
     const vaultHit = input.documents.some((doc) =>
       (doc.extractedText ?? "").toLowerCase().includes(entity.label.toLowerCase()),
     );
     if (!vaultHit) continue;
+    if (entity.kind === "director") continue;
     edges.push({
       fromKey: entity.id,
       toKey: companyId,

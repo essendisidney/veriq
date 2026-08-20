@@ -374,6 +374,55 @@ export async function loadCompanyFinancialHealth(
   };
 }
 
+/** Composite organisational verify pack — evidence only, never invented. */
+export async function loadCompanyVerify(
+  authorization: string | null,
+  company: string,
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  const token = bearerToken(authorization);
+  if (!token) {
+    return { status: 401, body: { error: "unauthorized" } };
+  }
+  const { status, body } = await loadCompanySnapshot(token, company);
+  if (status !== 200 || !body.company) {
+    return { status, body: { error: body.error ?? "lookup_failed" } };
+  }
+  const [relationships, conflicts, financial, risk] = await Promise.all([
+    loadCompanyRelationships(authorization, company),
+    loadCompanyConflicts(authorization, company),
+    loadCompanyFinancialHealth(authorization, company),
+    loadCompanyRisk(authorization, company),
+  ]);
+  const summary = (body.summary ?? {}) as {
+    truthScore?: unknown;
+    governance?: unknown;
+    acquisition?: { coverage?: number; confidence?: unknown };
+    digger?: { people?: unknown[]; summary?: string };
+  };
+  return {
+    status: 200,
+    body: {
+      company: body.company,
+      risk: {
+        overall: risk.body.score ?? body.score ?? null,
+        findings: risk.body.findings ?? [],
+      },
+      coverage: summary.acquisition?.coverage ?? null,
+      confidence: summary.acquisition?.confidence ?? null,
+      truthScore: summary.truthScore ?? null,
+      governance: summary.governance ?? null,
+      relationships: relationships.body.edges ?? [],
+      entities: relationships.body.entities ?? [],
+      conflicts: conflicts.body.conflicts ?? [],
+      financialHealth: financial.body.health ?? null,
+      financialError: financial.body.error ?? null,
+      digger: summary.digger?.summary ?? null,
+      disclaimer: API_DISCLAIMER,
+      note: "Verify is a composite of evidenced surfaces. UNKNOWN stays UNKNOWN. Not a KYB clearance or credit opinion.",
+    },
+  };
+}
+
 export async function loadInstitutionalPack(
   authorization: string | null,
   company: string,

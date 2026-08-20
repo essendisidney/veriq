@@ -5,6 +5,12 @@ export const MONEY_METRICS = [
   "profit",
   "assets",
   "expenses",
+  "debt",
+  "equity",
+  "interest",
+  "receivables",
+  "payables",
+  "cash",
 ] as const;
 export type MoneyMetric = (typeof MONEY_METRICS)[number];
 
@@ -26,6 +32,12 @@ const METRIC_PATTERNS: { metric: MoneyMetric; re: RegExp }[] = [
   { metric: "profit", re: /(?:net\s+profit|profit\s+after\s+tax|ebitda)\b/i },
   { metric: "assets", re: /(?:total\s+assets|fixed\s+assets)\b/i },
   { metric: "expenses", re: /(?:operating\s+expenses?|opex|expenditure)\b/i },
+  { metric: "debt", re: /(?:total\s+debt|borrowings?|loans?\s+payable|long[- ]term\s+debt)\b/i },
+  { metric: "equity", re: /(?:shareholders['’]?\s+equity|total\s+equity|net\s+assets)\b/i },
+  { metric: "interest", re: /(?:interest\s+(?:expense|paid|cost)|finance\s+costs?)\b/i },
+  { metric: "receivables", re: /(?:trade\s+receivables?|accounts?\s+receivable|debtors)\b/i },
+  { metric: "payables", re: /(?:trade\s+payables?|accounts?\s+payable|creditors)\b/i },
+  { metric: "cash", re: /(?:cash\s+(?:and\s+)?(?:bank|equivalents?)|closing\s+cash|cash\s+at\s+bank)\b/i },
 ];
 
 const AMOUNT_RE =
@@ -43,6 +55,7 @@ function kindDefault(kind: string): MoneyMetric | null {
   }
   if (kind === "payroll") return "payroll";
   if (kind === "invoices") return "revenue";
+  if (kind === "loan_schedule") return "debt";
   return null;
 }
 

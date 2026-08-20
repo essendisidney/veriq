@@ -19,12 +19,16 @@ import type { Risk } from "@/lib/database.types";
 import type { AcquisitionAssessment } from "@/lib/acquire/types";
 import type { FinancialHealth } from "@/lib/finance/health";
 import type { TruthScore } from "@/lib/truth/score";
+import type { GovernanceAssessment } from "@/lib/truth/governance";
+import type { DiggerReport } from "@/lib/digger/types";
 
 const PROMPTS = [
   "Why did you give us this score?",
   "Show me every contradiction.",
   "Where is our biggest financial leakage?",
-  "Which suppliers should we investigate?",
+  "Which directors have potential conflicts?",
+  "What would a lender worry about?",
+  "What should management fix first?",
   "What information are we missing?",
   "Can I lend this company money?",
 ];
@@ -40,6 +44,8 @@ export default function AskPage() {
   const [acquisition, setAcquisition] = useState<AcquisitionAssessment | null>(null);
   const [health, setHealth] = useState<FinancialHealth | null>(null);
   const [truthScore, setTruthScore] = useState<TruthScore | null>(null);
+  const [governance, setGovernance] = useState<GovernanceAssessment | null>(null);
+  const [digger, setDigger] = useState<DiggerReport | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -69,6 +75,8 @@ export default function AskPage() {
             acquisition?: AcquisitionAssessment;
             finance?: { health?: FinancialHealth };
             truthScore?: TruthScore;
+            governance?: GovernanceAssessment;
+            digger?: DiggerReport;
           }
         | undefined;
       setClaims(summary?.claims ?? null);
@@ -77,6 +85,8 @@ export default function AskPage() {
       setAcquisition(summary?.acquisition ?? null);
       setHealth(summary?.finance?.health ?? null);
       setTruthScore(summary?.truthScore ?? null);
+      setGovernance(summary?.governance ?? null);
+      setDigger(summary?.digger ?? null);
       setCritical((risks as Risk[] | null)?.length ?? 0);
       setLoaded(true);
     }
@@ -100,6 +110,8 @@ export default function AskPage() {
         acquisition,
         health,
         truthScore,
+        governance,
+        digger,
       }),
     );
   }

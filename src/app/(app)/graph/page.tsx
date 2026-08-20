@@ -8,6 +8,7 @@ import { useWorkspace } from "@/components/workspace/workspace-provider";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { RiskGraphView } from "@/components/risk-graph";
+import { EdgeValidationList } from "@/components/edge-validation";
 import type { RiskGraph } from "@/lib/graph/build";
 
 export default function GraphPage() {
@@ -86,6 +87,7 @@ export default function GraphPage() {
             <Stat label="Correlated paths" value={String(graph.paths.length)} />
           </div>
           <RiskGraphView graph={graph} />
+          {currentOrg && <EdgeValidationList organizationId={currentOrg.id} />}
         </>
       )}
     </div>

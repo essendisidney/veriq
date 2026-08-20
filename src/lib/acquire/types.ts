@@ -111,7 +111,7 @@ export type EvidenceEdge = {
   toKey: string;
   kind: string;
   confidence: number;
-  validationStatus: "requires_validation" | "pending";
+  validationStatus: "requires_validation" | "pending" | "validated" | "dismissed";
   why: string;
   sourceFactHashes: string[];
 };

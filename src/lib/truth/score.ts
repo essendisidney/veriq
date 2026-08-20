@@ -1,5 +1,6 @@
 import type { AcquisitionAssessment } from "@/lib/acquire/types";
 import type { FinancialHealth } from "@/lib/finance/health";
+import type { GovernanceAssessment } from "@/lib/truth/governance";
 
 export type TruthDimension = {
   id: string;
@@ -34,12 +35,15 @@ export function buildTruthScore(input: {
   acquisition?: AcquisitionAssessment | null;
   health?: FinancialHealth | null;
   conflictCount: number;
+  governance?: GovernanceAssessment | null;
 }): TruthScore {
   const coverage = input.acquisition?.coverage ?? 0;
   const dataConfidence = input.acquisition?.confidence.overall ?? 0;
   const ownership = input.acquisition?.confidence.ownership ?? 0;
   const healthComputed = input.health?.ratios.filter((row) => row.status === "computed").length ?? 0;
-  const liquidityKnown = input.health?.ratios.find((row) => row.id === "inflows")?.status === "computed";
+  const liquidityKnown =
+    input.health?.ratios.find((row) => row.id === "inflows" || row.id === "cash")?.status ===
+    "computed";
   const anomalyHit = (input.health?.anomalies.length ?? 0) > 0;
 
   const financialHealth: TruthDimension = {
@@ -60,11 +64,17 @@ export function buildTruthScore(input: {
     id: "liquidity",
     label: "Liquidity",
     score: liquidityKnown
-      ? Math.max(24, Math.min(90, (input.health?.ratios.find((row) => row.id === "inflow_coverage")?.value ?? 0.5) * 80))
+      ? Math.max(
+          24,
+          Math.min(
+            90,
+            (input.health?.ratios.find((row) => row.id === "inflow_coverage")?.value ?? 0.5) * 80,
+          ),
+        )
       : null,
     why: liquidityKnown
-      ? "Inflows vs reported revenue from authorised files."
-      : "No bank-statement inflows extracted. UNKNOWN.",
+      ? "Cash or inflows from authorised files."
+      : "No bank-statement cash/inflows extracted. UNKNOWN.",
   };
   const dataIntegrity: TruthDimension = {
     id: "data_integrity",
@@ -78,11 +88,12 @@ export function buildTruthScore(input: {
   const governance: TruthDimension = {
     id: "governance",
     label: "Governance",
-    score: ownership >= 80 ? 74 : ownership >= 40 ? 58 : null,
+    score: input.governance?.score ?? (ownership >= 80 ? 74 : ownership >= 40 ? 58 : null),
     why:
-      ownership >= 40
+      input.governance?.summary ??
+      (ownership >= 40
         ? "Ownership artefact present. Board/related-party completeness is still incomplete."
-        : "No CR12 / company extract. Governance stays UNKNOWN.",
+        : "No CR12 / company extract. Governance stays UNKNOWN."),
   };
   const compliance: TruthDimension = {
     id: "compliance",
@@ -99,8 +110,14 @@ export function buildTruthScore(input: {
   const counterparty: TruthDimension = {
     id: "counterparty",
     label: "Counterparty Risk",
-    score: input.vendor,
-    why: "From observed vendors. Related-party edges require human validation.",
+    score:
+      input.governance && input.governance.relatedPartyCount > 0
+        ? Math.max(22, Math.min(input.vendor, 70))
+        : input.vendor,
+    why:
+      input.governance && input.governance.relatedPartyCount > 0
+        ? `${input.governance.relatedPartyCount} related-party edge(s) require validation. Vendor observation still applies.`
+        : "From observed vendors. Related-party edges require human validation.",
   };
   const cyber: TruthDimension = {
     id: "cyber",

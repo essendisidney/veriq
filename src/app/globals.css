@@ -114,7 +114,7 @@ button {
 
 @media print {
   @page {
-    margin: 16mm;
+    margin: 14mm;
   }
 
   html,
@@ -125,20 +125,34 @@ button {
 
   .report-print {
     color: #111;
+    max-width: 100%;
   }
 
   .report-print section {
     break-inside: avoid;
     border-color: #d6d6d6 !important;
     background: #fff !important;
+    box-shadow: none !important;
   }
 
   .report-print h1,
   .report-print h2,
+  .report-print h3,
   .report-print p,
   .report-print li,
   .report-print span {
     color: inherit;
     break-inside: avoid;
+  }
+
+  .report-print a {
+    color: #111 !important;
+    text-decoration: none;
+  }
+
+  .report-print header.print\:block {
+    border-bottom: 1px solid #d6d6d6;
+    padding-bottom: 12px;
+    margin-bottom: 24px;
   }
 }

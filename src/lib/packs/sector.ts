@@ -60,7 +60,13 @@ export const SECTOR_PACK_CATALOG: SectorPack[] = [
         id: "sme-debt",
         title: "Debt service",
         need: "Loan schedule or accounts showing interest and principal. DSCR stays UNKNOWN without both.",
-        evidence: ["accounts", "contract"],
+        evidence: ["accounts", "loan_schedule", "contract"],
+      },
+      {
+        id: "sme-working-capital",
+        title: "Working capital",
+        need: "Accounts showing cash, receivables and payables — or UNKNOWN.",
+        evidence: ["accounts", "management_accounts", "audited_accounts", "bank_statement"],
       },
       {
         id: "sme-ownership",
@@ -77,7 +83,20 @@ export const SECTOR_PACK_CATALOG: SectorPack[] = [
     industries: ["sacco"],
     metrics: ["liquidity", "capital", "par", "governance", "member_concentration"],
     implemented: false,
-    rules: [],
+    rules: [
+      {
+        id: "sacco-liquidity-stub",
+        title: "Liquidity evidence",
+        need: "Upload liquidity schedule or management accounts. Capital adequacy formulas stay empty until a design partner fills them.",
+        evidence: ["accounts", "bank_statement"],
+      },
+      {
+        id: "sacco-governance-stub",
+        title: "Governance extract",
+        need: "Board minutes and CR12. Not a SASRA scrape.",
+        evidence: ["cr12", "board_minutes", "policy"],
+      },
+    ],
   },
   {
     id: "mfi",
@@ -86,7 +105,14 @@ export const SECTOR_PACK_CATALOG: SectorPack[] = [
     industries: ["mfi"],
     metrics: ["par", "collections", "cost_of_funds", "borrower_concentration"],
     implemented: false,
-    rules: [],
+    rules: [
+      {
+        id: "mfi-portfolio-stub",
+        title: "Portfolio evidence",
+        need: "Authorised loan book or management accounts. PAR formulas are not invented.",
+        evidence: ["accounts", "loan_schedule"],
+      },
+    ],
   },
   {
     id: "ngo",
@@ -95,7 +121,14 @@ export const SECTOR_PACK_CATALOG: SectorPack[] = [
     industries: ["ngo"],
     metrics: ["donor_concentration", "restricted_funds", "programme_spend", "governance"],
     implemented: false,
-    rules: [],
+    rules: [
+      {
+        id: "ngo-donor-stub",
+        title: "Donor / grant evidence",
+        need: "Donor reports or audited accounts. Grant compliance rules stay empty until design-partner evidence.",
+        evidence: ["accounts", "contract", "policy"],
+      },
+    ],
   },
   {
     id: "school",
@@ -104,7 +137,14 @@ export const SECTOR_PACK_CATALOG: SectorPack[] = [
     industries: ["education"],
     metrics: ["enrolment", "fees", "payroll", "ratios"],
     implemented: false,
-    rules: [],
+    rules: [
+      {
+        id: "school-fees-stub",
+        title: "Fee collection evidence",
+        need: "Fee records or bank statements. MoE registers are not scraped.",
+        evidence: ["bank_statement", "accounts", "payroll"],
+      },
+    ],
   },
   {
     id: "hospital",
@@ -149,7 +189,14 @@ export const SECTOR_PACK_CATALOG: SectorPack[] = [
     industries: ["fintech", "financial_services"],
     metrics: ["volumes", "liquidity", "aml_kyc", "settlement"],
     implemented: false,
-    rules: [],
+    rules: [
+      {
+        id: "fintech-aml-stub",
+        title: "AML / KYC artefacts",
+        need: "Customer-uploaded AML programme evidence. Not a CBK scrape. Case management is not this pack.",
+        evidence: ["policy", "licence", "accounts"],
+      },
+    ],
   },
 ];
 
@@ -161,10 +208,20 @@ export function packForIndustry(industry: string): SectorPack {
 }
 
 export function missingForPack(pack: SectorPack, documentKinds: string[]) {
+  if (pack.rules.length) {
+    const fromRules = pack.rules
+      .filter((rule) => !rule.evidence.some((kind) => documentKinds.includes(kind)))
+      .map((rule) => `${rule.title}: ${rule.need}`);
+    if (!pack.implemented) {
+      return [
+        ...fromRules,
+        `${pack.title} specialised metrics are catalogued only — not computed until a design partner fills the rules.`,
+      ];
+    }
+    return fromRules;
+  }
   if (!pack.implemented) {
     return pack.metrics.map((metric) => `${pack.title} metric '${metric}' is not implemented yet.`);
   }
-  return pack.rules
-    .filter((rule) => !rule.evidence.some((kind) => documentKinds.includes(kind)))
-    .map((rule) => `${rule.title}: ${rule.need}`);
+  return [];
 }

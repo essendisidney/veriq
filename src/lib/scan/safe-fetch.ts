@@ -1,6 +1,6 @@
 import { assertPublicScanUrl } from "@/lib/webhooks/ssrf";
 
-const UA = "VERIQ-Scan/0.1 (corporate-risk-intelligence)";
+const UA = "VERIQ/2.0 (+https://veriq-peach.vercel.app; identified company-site collector)";
 const MAX_REDIRECTS = 4;
 
 type SafeFetchInit = Omit<RequestInit, "redirect"> & {

@@ -1,4 +1,5 @@
 import type { ConnectorContext, ConnectorRunResult, DataConnector } from "./connectors";
+import { extractOfficersFromText } from "./directors";
 
 export const webIntelligenceConnector: DataConnector = {
   id: "ke-website",
@@ -101,11 +102,16 @@ export const brsConnector: DataConnector = {
       (doc) => doc.kind === "cr12" || doc.kind === "company_extract",
     );
     if (extract) {
+      const officers = extractOfficersFromText(extract.extractedText);
+      const directors = officers.filter((row) => row.role === "director");
+      const shareholders = officers.filter((row) => row.role === "shareholder");
       return {
         connectorId: this.id,
         status: "connected",
         observed: true,
-        note: "Ownership path is the uploaded extract, not a BRS scrape. Directors are not invented from the filename.",
+        note: directors.length
+          ? `Ownership path is the uploaded extract, not a BRS scrape. Parsed ${directors.length} director name(s)${shareholders.length ? ` and ${shareholders.length} shareholder name(s)` : ""} from the text layer.`
+          : "Ownership path is the uploaded extract, not a BRS scrape. No director names parsed from the text layer — upload a searchable CR12 or attest officers.",
         observations: [
           {
             claim: "ownership_artefact",
@@ -116,6 +122,15 @@ export const brsConnector: DataConnector = {
             excerpt: extract.extractedText?.slice(0, 400) || undefined,
             access: "customer_authorised",
           },
+          ...officers.map((row) => ({
+            claim: row.role === "director" ? "director_name" : "shareholder_name",
+            value: row.name,
+            confidence: 84,
+            sourceType: "document" as const,
+            sourceRef: extract.sha256,
+            excerpt: row.excerpt,
+            access: "customer_authorised" as const,
+          })),
         ],
       };
     }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { GitBranch } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useWorkspace } from "@/components/workspace/workspace-provider";
@@ -31,13 +32,20 @@ export default function RepositoriesPage() {
     <div>
       <PageHeader
         title="Repositories"
-        description="Public GitHub repositories observed during scan. Private repos require a later OAuth integration."
+        description="Public repos from the GitHub username on Settings, plus private repos when GitHub OAuth is connected for this company."
+        actions={
+          currentOrg ? (
+            <Link href="/settings" className="text-sm text-[var(--accent)] hover:underline">
+              Connect GitHub
+            </Link>
+          ) : null
+        }
       />
       {repos.length === 0 ? (
         <EmptyState
           icon={GitBranch}
           title="No repositories yet"
-          description="Add a GitHub username or organisation in settings, then rescan."
+          description="Add a public GitHub username in Settings, or Connect GitHub for private org access, then rescan."
         />
       ) : (
         <ul className="space-y-3">
@@ -59,9 +67,7 @@ export default function RepositoriesPage() {
                 {repo.language && <Badge>{repo.language}</Badge>}
               </div>
               {repo.description && (
-                <p className="mt-2 text-sm text-[var(--muted)]">
-                  {repo.description}
-                </p>
+                <p className="mt-2 text-sm text-[var(--muted)]">{repo.description}</p>
               )}
               <p className="mt-2 text-xs text-[var(--muted)]">
                 {repo.stars} stars

@@ -15,7 +15,10 @@ export type ChangeKind =
   | "regulation"
   | "ai"
   | "exposure"
-  | "score";
+  | "score"
+  | "conflict"
+  | "people"
+  | "ownership";
 
 export type ChangeItem = {
   id: string;
@@ -60,6 +63,10 @@ export type ScanSnapshot = {
     dmarc: boolean;
     tlsDays: number | null;
   } | null;
+  conflictClaims?: string[];
+  people?: string[];
+  ownershipPresent?: boolean;
+  relatedPartyCount?: number;
   partial?: boolean;
 };
 
@@ -85,6 +92,9 @@ const KIND_HREF: Record<ChangeKind, string> = {
   ai: "/ai",
   exposure: "/technology",
   score: "/dashboard",
+  conflict: "/coverage",
+  people: "/graph",
+  ownership: "/truth",
 };
 
 export function emptySnapshot(): ScanSnapshot {
@@ -100,6 +110,10 @@ export function emptySnapshot(): ScanSnapshot {
     ai: [],
     findings: [],
     exposure: null,
+    conflictClaims: [],
+    people: [],
+    ownershipPresent: false,
+    relatedPartyCount: 0,
   };
 }
 
@@ -114,6 +128,10 @@ export function buildSnapshot(input: {
   ai: AiAssessment | null;
   exposure: Exposure | null;
   findings: SnapshotFinding[];
+  conflictClaims?: string[];
+  people?: string[];
+  ownershipPresent?: boolean;
+  relatedPartyCount?: number;
 }): ScanSnapshot {
   return {
     website: input.website,
@@ -134,6 +152,10 @@ export function buildSnapshot(input: {
           tlsDays: input.exposure.tls?.daysRemaining ?? null,
         }
       : null,
+    conflictClaims: unique(input.conflictClaims ?? []),
+    people: unique(input.people ?? []),
+    ownershipPresent: Boolean(input.ownershipPresent),
+    relatedPartyCount: input.relatedPartyCount ?? 0,
   };
 }
 
@@ -270,6 +292,45 @@ export function diffSnapshots(input: {
     );
   }
 
+  pushSet(
+    items,
+    "conflict",
+    input.previous.conflictClaims ?? [],
+    input.current.conflictClaims ?? [],
+    "contradiction",
+  );
+  pushSet(items, "people", input.previous.people ?? [], input.current.people ?? [], "named person");
+
+  const prevOwn = Boolean(input.previous.ownershipPresent);
+  const nextOwn = Boolean(input.current.ownershipPresent);
+  if (prevOwn !== nextOwn) {
+    items.push(
+      item({
+        kind: "ownership",
+        polarity: nextOwn ? "added" : "removed",
+        title: nextOwn
+          ? "Ownership extract now on file"
+          : "Ownership extract no longer on file",
+        detail: "CR12 / company extract presence changed between scans",
+        notify: true,
+      }),
+    );
+  }
+  const prevRp = input.previous.relatedPartyCount ?? 0;
+  const nextRp = input.current.relatedPartyCount ?? 0;
+  if (nextRp > prevRp) {
+    items.push(
+      item({
+        kind: "people",
+        polarity: "added",
+        title: `${nextRp - prevRp} new related-party edge${nextRp - prevRp === 1 ? "" : "s"}`,
+        detail: "Requires human validation — not an accusation",
+        notify: true,
+        severity: "medium",
+      }),
+    );
+  }
+
   const prevExp = input.previous.exposure;
   const nextExp = input.current.exposure;
   if (prevExp && nextExp) {
@@ -368,7 +429,8 @@ export function significantChanges(changes: ChangeSet, limit = 8): ChangeItem[] 
 export function criticalityFor(item: ChangeItem): AssetCriticality {
   if (item.severity === "critical") return "critical";
   if (item.severity === "high" || item.kind === "vendor" || item.kind === "ai") return "high";
-  if (item.severity === "medium" || item.kind === "finding") return "medium";
+  if (item.kind === "conflict" || item.kind === "ownership") return "high";
+  if (item.severity === "medium" || item.kind === "finding" || item.kind === "people") return "medium";
   return "low";
 }
 

@@ -164,7 +164,8 @@ export async function publicCompanySnapshot(query: string): Promise<
             githubLogin: identity.githubLogin,
           }
         : null,
-      pagesRead: (scanned.reachable ? 1 : 0) + scanned.storyPages.length,
+      pagesRead: scanned.crawled.filter((row) => row.status === "fetched").length ||
+        (scanned.reachable ? 1 : 0) + scanned.storyPages.length,
     },
   };
 }
